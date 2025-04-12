@@ -68,6 +68,14 @@ class Arena():
 
             board, curPlayer = self.game.getNextState(board, curPlayer, action)
 
+            if it > 250:
+                from JGGame import action_unpack
+                print("STUCK IN LOOP")
+                print(curPlayer)
+                print(board)
+                print(action, '=', action_unpack(action))
+                break
+
         for player in players[0], players[2]:
             if hasattr(player, "endGame"):
                 player.endGame()

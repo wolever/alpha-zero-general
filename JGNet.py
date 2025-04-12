@@ -110,6 +110,7 @@ class NNetWrapper(NeuralNet):
         examples: list of examples, each example is of form (board, pi, v)
         """
         optimizer = optim.Adam(self.nnet.parameters())
+        print(f"Training net on {len(examples)} examples...")
 
         for epoch in range(args.epochs):
             print('EPOCH ::: ' + str(epoch + 1))
@@ -174,22 +175,13 @@ class NNetWrapper(NeuralNet):
     def loss_v(self, targets, outputs):
         return torch.sum((targets - outputs.view(-1)) ** 2) / targets.size()[0]
 
-    def save_checkpoint(self, folder='checkpoint', filename='checkpoint.pth.tar'):
-        filepath = os.path.join(folder, filename)
-        if not os.path.exists(folder):
-            print("Checkpoint Directory does not exist! Making directory {}".format(folder))
-            os.mkdir(folder)
-        else:
-            print("Checkpoint Directory exists! ")
-        torch.save({
-            'state_dict': self.nnet.state_dict(),
-        }, filepath)
+    def save_checkpoint(self, filename):
+        torch.save({ 'state_dict': self.nnet.state_dict() }, filename)
 
-    def load_checkpoint(self, folder='checkpoint', filename='checkpoint.pth.tar'):
+    def load_checkpoint(self, filename):
         # https://github.com/pytorch/examples/blob/master/imagenet/main.py#L98
-        filepath = os.path.join(folder, filename)
-        if not os.path.exists(filepath):
-            raise ("No model in path {}".format(filepath))
-        map_location = None if args.cuda else 'cpu'
-        checkpoint = torch.load(filepath, map_location=map_location)
+        if not os.path.exists(filename):
+            raise ValueError("No model in path {}".format(filename))
+        map_location = None if (args.cuda or args.mps) else 'cpu'
+        checkpoint = torch.load(filename, map_location=map_location)
         self.nnet.load_state_dict(checkpoint['state_dict'])

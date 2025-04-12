@@ -1,44 +1,96 @@
-from Game import Game
 import numpy as np
+from Game import Game
+from colorist import Color
 
 BOARD_SIZE = 5
 
-def _gex_axial_to_index_map(side_length: int):
-  res = []
+def generate_board(side_length: int = BOARD_SIZE, mirror: bool = False, flip: bool = False):
+  """ Generates a hex board with side_length tiles on each side,
+  using axial coordinates.
+
+  For example::
+
+    >>> print_board(generate_board())
+            ( 0  2) ( 1  2) ( 2  2)
+
+        (-1  1) ( 0  1) ( 1  1) ( 2  1)
+
+    (-2  0) (-1  0) ( 0  0) ( 1  0) ( 2  0)
+
+        (-2 -1) (-1 -1) ( 0 -1) ( 1 -1)
+
+            (-2 -2) (-1 -2) ( 0 -2)
+  """
   board_height = 2 * side_length - 1
-  for r in range(side_length - 1, -side_length, -1):
+
+  start, stop, step = [
+    (side_length - 1, -side_length, -1),
+    (-side_length + 1, side_length, 1),
+  ][flip]
+
+  for r in range(start, stop, step):
     row_length = board_height - abs(r)
     row_start = max(
       1 - side_length,
       r - (side_length - 1),
     )
-    for q in range(row_start, row_start + row_length):
-      res.append((q, r))
+    start, stop, step = [
+      (row_start, row_start + row_length, 1),
+      (row_start + row_length- 1, row_start - 1, -1),
+    ][mirror]
+    for q in range(start, stop, step):
+      yield (q, r)
 
+def _print_board(board, width: int, side_length: int = BOARD_SIZE):
+  height = 2 * side_length - 1
+  for row in range(height):
+    row_length = height - abs(side_length - row - 1)
+    print(" "  * ((height - row_length) * width), end="")
+    for col in range(row_length):
+      print(next(board), end="")
+    print()
+
+def print_board(board):
+    board_bits = iter([
+      f"{Color.RED}{p0}{Color.RESET} " if p0 else
+      f"{Color.BLUE}{p1}{Color.RESET} " if p1 else
+      "_ "
+      for p0, p1 in zip(*board.T)
+    ])
+    _print_board(
+        board_bits,
+        width=1,
+    )
+
+def _gex_axial_to_index_map():
   ax_to_index = {}
   index_to_ax = {}
-  for i, (q, r) in enumerate(res):
+  for i, (q, r) in enumerate(generate_board()):
     ax_to_index[(q, r)] = i
     index_to_ax[i] = (q, r)
   return ax_to_index, index_to_ax
 
-ax_to_ix, ix_to_ax = _gex_axial_to_index_map(BOARD_SIZE)
+ax_to_ix, ix_to_ax = _gex_axial_to_index_map()
 
-def adjacent_idxs(idx: int):
+
+def adjacent_idxs(idx: int, player_idx: int):
     q, r = ix_to_ax[idx]
     adj_coords = [
-        (q + 1, r),
-        (q - 1, r),
-        (q, r + 1),
-        (q, r - 1),
-        (q + 1, r - 1),
-        (q - 1, r + 1),
+        ((q + 1, r), True),
+        ((q - 1, r), True),
+        ((q, r + 1), player_idx == 1),
+        ((q, r - 1), player_idx == 0),
+        ((q - 1, r + 1), player_idx == 1),
+        ((q + 1, r - 1), player_idx == 0),
     ]
     res = []
-    for coord in adj_coords:
+    for coord, valid in adj_coords:
+        if not valid:
+            continue
         idx = ax_to_ix.get(coord)
-        if idx is not None:
-            res.append(idx)
+        if idx is None:
+            continue
+        res.append(idx)
     return res
 
 def flood_fill(board: np.ndarray[int, int], player_idx: int, start_idx: int, count: int):
@@ -62,7 +114,7 @@ def flood_fill(board: np.ndarray[int, int], player_idx: int, start_idx: int, cou
         if count > 0 and np.sum(board[idx]) == 0:
             queue.extend(
                 (adj_idx, count - 1)
-                for adj_idx in adjacent_idxs(idx)
+                for adj_idx in adjacent_idxs(idx, player_idx)
                 if adj_idx not in visited
             )
 
@@ -151,6 +203,7 @@ def get_board():
     # board)
     return np.zeros((len(ix_to_ax) + 1, 2), dtype=np.int8)
 
+
 class JGGame(Game):
     def getInitBoard(self):
         # return initial board (numpy board)
@@ -209,10 +262,14 @@ class JGGame(Game):
         player_idx = 0 if player < 0 else 1
 
         def add_action(skip: bool, src_idx_player: int, dst_idx: int, count: int):
+            if src_idx_player > 0b1111:
+                # Hack to prevent invalid moves from being added
+                # This should hardly ever happen, but it's a hack
+                return
             action = action_pack(skip, src_idx_player, dst_idx, count)
-            check_board, _ = self.getNextState(board, player, action)
-            if np.any(check_board < 0):
-                breakpoint()
+            #check_board, _ = self.getNextState(board, player, action)
+            #if np.any(check_board < 0):
+            #    breakpoint()
             actions.append(action)
 
         coins_available = board[-1, player_idx]
@@ -253,7 +310,7 @@ class JGGame(Game):
             # 2. Splits
             opponent_idx = 1 - player_idx
             for src_idx_player, src_idx in enumerate(player_coin_idxs):
-                for adj_idx in adjacent_idxs(src_idx):
+                for adj_idx in adjacent_idxs(src_idx, player_idx):
                     if board[adj_idx, opponent_idx] > 0:
                         continue
                     coin_count = board[src_idx, player_idx]
@@ -292,7 +349,9 @@ class JGGame(Game):
         return board[:, ::-1]
 
     def getSymmetries(self, board: np.ndarray[int, int], pi: np.ndarray[float, int]):
-        return [(board, pi)]
+        return [
+            (board, pi),
+        ]
 
     def stringRepresentation(self, board: np.ndarray[int, int]):
         return board.tobytes()

@@ -75,8 +75,8 @@ class MCTS():
 
         s = self.game.stringRepresentation(canonicalBoard)
 
-        #if depth > 100:
-        #    self.Es[s] = -1
+        if depth > 100:
+            self.Es[s] = -1
 
         if s not in self.Es:
             self.Es[s] = self.game.getGameEnded(canonicalBoard, 1)
@@ -98,7 +98,9 @@ class MCTS():
 
                 # NB! All valid moves may be masked if either your NNet architecture is insufficient or you've get overfitting or something else.
                 # If you have got dozens or hundreds of these messages you should pay attention to your NNet and/or training process.
-                breakpoint()
+                #breakpoint()
+                from JGGame import print_board
+                print_board(canonicalBoard)
                 log.error("All valid moves were masked, doing a workaround.")
                 self.Ps[s] = self.Ps[s] + valids
                 self.Ps[s] /= np.sum(self.Ps[s])
