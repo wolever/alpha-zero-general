@@ -1,3 +1,4 @@
+from collections import deque
 import logging
 import math
 
@@ -52,7 +53,7 @@ class MCTS():
         probs = [x / counts_sum for x in counts]
         return probs
 
-    def search(self, canonicalBoard):
+    def search(self, canonicalBoard, depth=0):
         """
         This function performs one iteration of MCTS. It is recursively called
         till a leaf node is found. The action chosen at each node is one that
@@ -74,8 +75,12 @@ class MCTS():
 
         s = self.game.stringRepresentation(canonicalBoard)
 
+        #if depth > 100:
+        #    self.Es[s] = -1
+
         if s not in self.Es:
             self.Es[s] = self.game.getGameEnded(canonicalBoard, 1)
+
         if self.Es[s] != 0:
             # terminal node
             return -self.Es[s]
@@ -92,7 +97,8 @@ class MCTS():
                 # if all valid moves were masked make all valid moves equally probable
 
                 # NB! All valid moves may be masked if either your NNet architecture is insufficient or you've get overfitting or something else.
-                # If you have got dozens or hundreds of these messages you should pay attention to your NNet and/or training process.   
+                # If you have got dozens or hundreds of these messages you should pay attention to your NNet and/or training process.
+                breakpoint()
                 log.error("All valid moves were masked, doing a workaround.")
                 self.Ps[s] = self.Ps[s] + valids
                 self.Ps[s] /= np.sum(self.Ps[s])
@@ -122,7 +128,7 @@ class MCTS():
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
-        v = self.search(next_s)
+        v = self.search(next_s, depth + 1)
 
         if (s, a) in self.Qsa:
             self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (self.Nsa[(s, a)] + 1)
