@@ -52,8 +52,8 @@ def _print_board(board, width: int, side_length: int = BOARD_SIZE):
 
 def print_board(board):
     board_bits = iter([
-      f"{Color.RED}{p0}{Color.RESET} " if p0 else
-      f"{Color.BLUE}{p1}{Color.RESET} " if p1 else
+      f"{Color.RED}{p0}{Color.OFF} " if p0 else
+      f"{Color.BLUE}{p1}{Color.OFF} " if p1 else
       "_ "
       for p0, p1 in zip(*board.T)
     ])
@@ -203,6 +203,21 @@ def get_board():
     # board)
     return np.zeros((len(ix_to_ax) + 1, 2), dtype=np.int8)
 
+class Board:
+    arr: np.ndarray[int, int]
+    player_idx: int
+
+    def __init__(self, board_arr: np.ndarray[int, int], *, player_num: int):
+        self.arr = board_arr
+        self.player_idx = 0 if player_num > 0 else 1
+
+    def canonicalize(self) -> "Board":
+        if self.player_idx == 1:
+            self.arr = self.arr[::-1]
+        return self
+
+
+
 
 class JGGame(Game):
     def getInitBoard(self):
@@ -221,7 +236,6 @@ class JGGame(Game):
         if action == 0b11111111111111:
             return board, -player
 
-        orig_board = board.copy()
         skip, src_idx_player, dst_idx, count = action_unpack(action)
 
         player_idx = 0 if player < 0 else 1
@@ -344,9 +358,7 @@ class JGGame(Game):
         return 0
 
     def getCanonicalForm(self, board: np.ndarray[int, int], player: int):
-        if player == 1:
-            return board
-        return board[:, ::-1]
+        return board
 
     def getSymmetries(self, board: np.ndarray[int, int], pi: np.ndarray[float, int]):
         return [
