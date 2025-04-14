@@ -4,6 +4,8 @@ import math
 
 import numpy as np
 
+from JGGame import JGGame
+
 EPS = 1e-8
 
 log = logging.getLogger(__name__)
@@ -13,6 +15,8 @@ class MCTS():
     """
     This class handles the MCTS tree.
     """
+
+    game: JGGame
 
     def __init__(self, game, nnet, args):
         self.game = game
@@ -98,9 +102,8 @@ class MCTS():
 
                 # NB! All valid moves may be masked if either your NNet architecture is insufficient or you've get overfitting or something else.
                 # If you have got dozens or hundreds of these messages you should pay attention to your NNet and/or training process.
-                #breakpoint()
-                from JGGame import print_board
-                print_board(canonicalBoard)
+                from JGGame import Board
+                Board(canonicalBoard).display()
                 log.error("All valid moves were masked, doing a workaround.")
                 self.Ps[s] = self.Ps[s] + valids
                 self.Ps[s] /= np.sum(self.Ps[s])
@@ -128,8 +131,6 @@ class MCTS():
 
         a = best_act
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
-        from JGGame import print_board
-        print_board(next_s)
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
         v = self.search(next_s, depth + 1)

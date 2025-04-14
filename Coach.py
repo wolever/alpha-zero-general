@@ -9,6 +9,7 @@ import numpy as np
 from tqdm import tqdm
 
 from Arena import Arena
+from JGGame import JGGame
 from MCTS import MCTS
 
 log = logging.getLogger(__name__)
@@ -24,7 +25,9 @@ class Coach():
     in Game and NeuralNet. args are specified in main.py.
     """
 
-    def __init__(self, game, nnet, args):
+    game: JGGame
+
+    def __init__(self, game: JGGame, nnet, args):
         self.game = game
         self.nnet = nnet
         self.pnet = self.nnet.__class__(self.game)  # the competitor network
@@ -54,6 +57,10 @@ class Coach():
         self.curPlayer = 1
         episodeStep = 0
 
+        from JGGame import Board, action_unpack
+
+        board_stack = [None] * 10
+
         while True:
 
             episodeStep += 1
@@ -66,7 +73,11 @@ class Coach():
                 trainExamples.append([b, self.curPlayer, p, None])
 
             action = np.random.choice(len(pi), p=pi)
-            board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
+
+            # DW note: this appears to be a bug; it should be using player=1 and the canonical board
+            #board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
+            board, self.curPlayer = self.game.getNextState(canonicalBoard, 1, action)
+            board_stack[episodeStep % len(board_stack)] = (episodeStep, board)
 
             r = self.game.getGameEnded(board, self.curPlayer)
 
@@ -77,7 +88,9 @@ class Coach():
                 from JGGame import action_unpack
                 print("STUCK IN LOOP")
                 print(self.curPlayer)
-                print(board)
+                for _, past_board in sorted(board_stack, key=lambda x: x[0]):
+                    Board(past_board).display()
+                Board(board).display()
                 print(action, '=', action_unpack(action))
                 return []
 

@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from NeuralNet import NeuralNet
+from JGGame import JGGame
 from tqdm import tqdm
 
 from utils import dotdict, AverageMeter
@@ -23,7 +24,7 @@ args = dotdict({
 })
 
 class JGNNet(nn.Module):
-    def __init__(self, game, args):
+    def __init__(self, game: JGGame, args):
         # game params
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
