@@ -133,6 +133,7 @@ class Coach():
                 print("Checkpoint Directory does not exist! Making directory {}".format(self.args.checkpoint))
                 os.mkdir(self.args.checkpoint)
 
+            print("Saving previous network...")
             temp_file = os.path.join(self.args.checkpoint, 'temp.pth.tar')
             self.nnet.save_checkpoint(temp_file)
 
@@ -141,6 +142,7 @@ class Coach():
             pmcts = MCTS(self.game, self.pnet, self.args)
 
             # Train the new network
+            print(f"Training on {len(trainExamples)} examples...")
             self.nnet.train(trainExamples)
             nmcts = MCTS(self.game, self.nnet, self.args)
 

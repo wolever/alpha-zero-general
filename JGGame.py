@@ -264,10 +264,9 @@ class Board:
         new_amount = abs(self.arr[idx])
         new_amount -= count
         if new_amount < 0:
-            print(f"ERROR: coins_deduct: {player=}, {idx=}, {count=}, {new_amount=}"
-                  f"self.arr[idx]=, {self.arr[idx]=}")
+            print(f"ERROR: coins_deduct: {player=}, {idx=}, {count=}, {new_amount=}, {self.arr[idx]=}")
             self.display()
-            new_amount = 0 # hack: it's unclear why this is happening... hopefully it's not a problem :|
+            breakpoint()
         self.arr[idx] = new_amount * player
 
     def coins_add(self, player: int, idx: int, count: int):
