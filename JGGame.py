@@ -83,6 +83,8 @@ def adjacent_idxs(idx: int, player_idx: int):
         idx = ax_to_ix.get(coord)
         if idx is None:
             continue
+        if idx == PLAYER_IDX_CITY_IDXS[player_idx]:
+            continue
         res.append(idx)
     return res
 
@@ -229,14 +231,15 @@ class Board:
     def coins_to_add_deduct(self, player: int, count: int):
         self.arr[-2 + _player_idx[player]] -= count
         assert self.arr[-2 + _player_idx[player]] >= 0,\
-            f"coins_remaining_deduct: {player}, {count}, {self.arr[-2 + _player_idx[player]]}"
+            f"coins_remaining_deduct: {player=}, {count=}, {self.arr[-2 + _player_idx[player]]=}"
 
     def player_available_starting_idxs(self, player: int) -> np.ndarray[int, int]:
         assert player == 1, f"player_available_starting_idxs: {player}"
         return np.where((self.arr == 0) & player_starting_location_mask)[0]
 
     def player_coin_idxs(self, player: int) -> np.ndarray[int, int]:
-        return np.where((self.arr > 0) if player > 0 else (self.arr < 0))[0]
+        arr = self.arr[:-2]
+        return np.where((arr > 0) if player > 0 else (arr < 0))[0]
 
     def coins_at_idx(self, *, player: int, idx: int) -> int:
         """ Returns the normalized coin count at `idx` for `player`.
@@ -250,19 +253,22 @@ class Board:
         return -self.arr[idx]
 
     def src_idx_player_to_idx(self, player: int, src_idx_player: int) -> int:
-        arr = self.arr
-        player_coins = (arr > 0 if player > 0 else arr < 0)
+        arr = self.arr[:-2]
+        player_coins = ((arr > 0) if player > 0 else (arr < 0))
         player_coin_idxs = np.where(player_coins)[0]
         return player_coin_idxs[src_idx_player]
 
     def coins_deduct(self, player: int, idx: int, count: int):
         """ Deduct `count` coins from the stack owned by `player` at `idx` """
-        assert (self.arr[idx] < 0) == (player < 0), f"coins_deduct: {player}, {idx}, {count}"
-        new_val = self.arr[idx] - (count * player)
-        if new_val < 0:
-            breakpoint() # XXX
-        self.arr[idx] = new_val
-        assert self.arr[idx] >= 0, f"coins_deduct: {player=}, {idx=}, {count=}, {self.arr[idx]=}"
+        assert (self.arr[idx] < 0) == (player < 0), f"coins_deduct: {player=}, {idx=}, {count=}"
+        new_amount = abs(self.arr[idx])
+        new_amount -= count
+        if new_amount < 0:
+            print(f"ERROR: coins_deduct: {player=}, {idx=}, {count=}, {new_amount=}"
+                  f"self.arr[idx]=, {self.arr[idx]=}")
+            self.display()
+            new_amount = 0 # hack: it's unclear why this is happening... hopefully it's not a problem :|
+        self.arr[idx] = new_amount * player
 
     def coins_add(self, player: int, idx: int, count: int):
         """ Add `count` coins to the board location `idx`, where `player` is the
@@ -278,8 +284,8 @@ class Board:
             self.arr[idx] = count * player
 
     def coins_on_board(self, player: int) -> int:
-        arr = self.arr
-        return np.abs(arr[arr > 0 if player > 0 else arr < 0][:-2]).sum()
+        arr = self.arr[:-2]
+        return np.abs(arr[(arr > 0) if player > 0 else (arr < 0)]).sum()
 
     def canonicalize_arr(self, player: int) -> np.ndarray[int, int]:
         if player == 1:
@@ -303,6 +309,9 @@ class Board:
         print("Player 1:", self.coins_to_add(1))
         print("Player 2:", self.coins_to_add(-1))
 
+class GameWin(Exception):
+    def __init__(self, action: int):
+        self.action = action
 
 class JGGame(Game):
     def getInitBoard(self):
@@ -352,6 +361,15 @@ class JGGame(Game):
         return board.arr, -player
 
     def getValidMoves(self, board_arr: np.ndarray[int, int], player: int) -> np.ndarray[bool]:
+        try:
+            return self._getValidMoves(board_arr, player)
+        except GameWin as e:
+            #print("Found game win")
+            res = np.zeros(self.getActionSize(), dtype=bool)
+            res[e.action] = True
+            return res
+
+    def _getValidMoves(self, board_arr: np.ndarray[int, int], player: int) -> np.ndarray[bool]:
         actions: list[int] = []
         board = Board(board_arr)
 
@@ -362,6 +380,8 @@ class JGGame(Game):
                 return
             action = action_pack(skip, src_idx_player, dst_idx, count)
             self.getNextState(board_arr, player, action)
+            if dst_idx == PLAYER_CITY_IDXS[-player]:
+                raise GameWin(action)
             #check_board, _ = self.getNextState(board, player, action)
             #if np.any(check_board < 0):
             #    breakpoint()
@@ -426,18 +446,29 @@ class JGGame(Game):
 
         if board.coins_on_board(player) + board.coins_to_add(player) == 0:
             # Player has no coins remaining
+            #print("Game win: player has no coins remaining")
+            #board.display()
             return -1
 
         if board.coins_on_board(-player) + board.coins_to_add(-player) == 0:
             # Opponent has no coins remaining
+            #print("Game win: opponent has no coins remaining")
+            #print("Player 1:", board.coins_to_add(1), board.coins_on_board(1))
+            #print("Player 2:", board.coins_to_add(-1), board.coins_on_board(-1))
+            #board.display()
+            #breakpoint()
             return 1
 
         if board.coins_at_idx(player=player, idx=PLAYER_CITY_IDXS[player]):
             # Player's city has coins on it
+            #print("Game win: player's city has coins on it")
+            #board.display()
             return -1
 
         if board.coins_at_idx(player=player, idx=PLAYER_CITY_IDXS[-player]):
             # Opponent's city has coins on it
+            #print("Game win: opponent's city has coins on it")
+            #board.display()
             return 1
 
         return 0
