@@ -18,8 +18,11 @@ args = dotdict({
     'dropout': 0.3,
     'epochs': 10,
     'batch_size': 64,
-    'cuda': torch.cuda.is_available(),
-    'mps': torch.backends.mps.is_available(),
+    'device': (
+        'cuda' if torch.cuda.is_available() else
+        'mps' if torch.backends.mps.is_available() else
+        'cpu'
+    ),
     'num_channels': 1024,
 })
 
@@ -101,10 +104,8 @@ class NNetWrapper(NeuralNet):
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
 
-        if args.cuda:
-            self.nnet.cuda()
-        elif args.mps:
-            self.nnet.to('mps')
+        if args.device:
+            self.nnet.to(args.device)
 
     def train(self, examples):
         """
@@ -130,10 +131,12 @@ class NNetWrapper(NeuralNet):
                 target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
                 # predict
-                if args.cuda:
-                    boards, target_pis, target_vs = boards.contiguous().cuda(), target_pis.contiguous().cuda(), target_vs.contiguous().cuda()
-                elif args.mps:
-                    boards, target_pis, target_vs = boards.contiguous().to('mps'), target_pis.contiguous().to('mps'), target_vs.contiguous().to('mps')
+                if args.device:
+                    boards, target_pis, target_vs = (
+                        boards.contiguous().to(args.device),
+                        target_pis.contiguous().to(args.device),
+                        target_vs.contiguous().to(args.device)
+                    )
 
                 # compute output
                 out_pi, out_v = self.nnet(boards)
@@ -160,8 +163,12 @@ class NNetWrapper(NeuralNet):
 
         # preparing input
         board = torch.FloatTensor(board.astype(np.float64))
-        if args.cuda: board = board.contiguous().cuda()
-        elif args.mps: board = board.contiguous().to('mps')
+        args.device = (
+            'cuda' if args.cuda else
+            'mps' if args.mps else
+            'cpu'
+        )
+        board = board.contiguous().to(args.device)
         board = board.view(1, self.board_x, self.board_y)
         self.nnet.eval()
         with torch.no_grad():

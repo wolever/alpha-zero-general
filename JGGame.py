@@ -378,7 +378,7 @@ class JGGame(Game):
                 # This should hardly ever happen, but it's a hack
                 return
             action = action_pack(skip, src_idx_player, dst_idx, count)
-            self.getNextState(board_arr, player, action)
+            #self.getNextState(board_arr, player, action)
             if dst_idx == PLAYER_CITY_IDXS[-player]:
                 raise GameWin(action)
             #check_board, _ = self.getNextState(board, player, action)

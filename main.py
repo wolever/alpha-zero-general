@@ -17,7 +17,7 @@ coloredlogs.install(level='INFO')  # Change this to DEBUG to see more info.
 
 args = dotdict({
     'numIters': 1000,
-    'numEps': 50,               # Number of complete self-play games to simulate during a new iteration.
+    'numEps': 250,              # Number of complete self-play games to simulate during a new iteration.
     #'numIters': 1000,
     #'numEps': 1,               # Number of complete self-play games to simulate during a new iteration.
     'tempThreshold': 15,        #
