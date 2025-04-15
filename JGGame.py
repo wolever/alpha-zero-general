@@ -65,7 +65,6 @@ map_ix_flip_map = [
   for qr in generate_board(flip=True)
 ]
 
-
 def adjacent_idxs(idx: int, player_idx: int):
     q, r = ix_to_ax[idx]
     adj_coords = [
@@ -73,8 +72,8 @@ def adjacent_idxs(idx: int, player_idx: int):
         ((q - 1, r), True),
         ((q, r + 1), player_idx == 1),
         ((q, r - 1), player_idx == 0),
-        ((q - 1, r + 1), player_idx == 1),
-        ((q + 1, r - 1), player_idx == 0),
+        ((q + 1, r + 1), player_idx == 1),
+        ((q - 1, r - 1), player_idx == 0),
     ]
     res = []
     for coord, valid in adj_coords:
@@ -92,9 +91,9 @@ def flood_fill(board: np.ndarray[int, int], player_idx: int, start_idx: int, cou
     valid_moves = []
     # Players can't move coins into their own city
     visited = set([PLAYER_IDX_CITY_IDXS[player_idx]])
-    queue = [(start_idx, count)]
+    queue = [(start_idx, count, True)]
     while queue:
-        idx, count = queue.pop()
+        idx, count, is_first = queue.pop()
         if idx in visited:
             continue
         visited.add(idx)
@@ -106,9 +105,9 @@ def flood_fill(board: np.ndarray[int, int], player_idx: int, start_idx: int, cou
         # Continue moving if:
         # - count > 0, and
         # - the current tile is empty
-        if count > 0 and board[idx] == 0:
+        if count > 0 and (is_first or board[idx] == 0):
             queue.extend(
-                (adj_idx, count - 1)
+                (adj_idx, count - 1, False)
                 for adj_idx in adjacent_idxs(idx, player_idx)
                 if adj_idx not in visited
             )
@@ -188,7 +187,7 @@ def action_pack(skip: bool, src_idx_player: int, dst_idx: int, count: int):
     return (
        (src_idx_player << 10) |
        (dst_idx << 4) |
-       count
+       int(count)
     )
 
 def action_unpack(action: int):
@@ -266,7 +265,7 @@ class Board:
         if new_amount < 0:
             print(f"ERROR: coins_deduct: {player=}, {idx=}, {count=}, {new_amount=}, {self.arr[idx]=}")
             self.display()
-            breakpoint()
+            new_amount = 0 # hack: it's unclear why this is happening... hopefully it's not a problem :|
         self.arr[idx] = new_amount * player
 
     def coins_add(self, player: int, idx: int, count: int):
@@ -436,6 +435,8 @@ class JGGame(Game):
                             split_count,
                         )
 
+        if not actions:
+            breakpoint()
         res = np.zeros(self.getActionSize(), dtype=bool)
         res[actions] = True
         return res

@@ -2,6 +2,8 @@ import logging
 
 from tqdm import tqdm
 
+from JGGame import JGGame
+
 log = logging.getLogger(__name__)
 
 
@@ -9,6 +11,8 @@ class Arena():
     """
     An Arena class where any 2 agents can be pit against each other.
     """
+
+    game: JGGame
 
     def __init__(self, player1, player2, game, display=None):
         """
@@ -52,9 +56,10 @@ class Arena():
                 assert self.display
                 print("Turn ", str(it), "Player ", str(curPlayer))
                 self.display(board)
-            action = players[curPlayer + 1](self.game.getCanonicalForm(board, curPlayer))
+            canonical_board = self.game.getCanonicalForm(board, curPlayer)
+            action = players[curPlayer + 1](canonical_board)
 
-            valids = self.game.getValidMoves(self.game.getCanonicalForm(board, curPlayer), 1)
+            valids = self.game.getValidMoves(canonical_board, 1)
 
             if valids[action] == 0:
                 log.error(f'Action {action} is not valid!')
@@ -66,7 +71,12 @@ class Arena():
             if hasattr(opponent, "notify"):
                 opponent.notify(board, action)
 
-            board, curPlayer = self.game.getNextState(board, curPlayer, action)
+            #print("Player", curPlayer, "playing action", action)
+            #print("Board before move:")
+            #self.game.display(board)
+            board, curPlayer = self.game.getNextState(canonical_board, 1, action)
+            #print("Board after move:")
+            #self.game.display(board)
 
             if it > 250:
                 from JGGame import action_unpack
@@ -75,6 +85,9 @@ class Arena():
                 print(board)
                 print(action, '=', action_unpack(action))
                 break
+
+        print(f"Game over! Player {curPlayer} won after {it} turns")
+        self.game.display(board)
 
         for player in players[0], players[2]:
             if hasattr(player, "endGame"):

@@ -106,6 +106,8 @@ class Coach():
         for i in range(1, self.args.numIters + 1):
             # bookkeeping
             log.info(f'Starting Iter #{i} ...')
+            temp_checkpoint = os.path.join(self.args.checkpoint, f'temp.pth.tar')
+            self.nnet.save_checkpoint(temp_checkpoint)
             # examples of the iteration
             if not self.skipFirstSelfPlay or i > 1:
                 iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
@@ -117,7 +119,7 @@ class Coach():
                 # save the iteration examples to the history
                 self.trainExamplesHistory.append(iterationTrainExamples)
 
-            if len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory:
+            while len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory:
                 log.warning(
                     f"Removing the oldest entry in trainExamples. len(trainExamplesHistory) = {len(self.trainExamplesHistory)}")
                 self.trainExamplesHistory.pop(0)
@@ -133,16 +135,15 @@ class Coach():
                 print("Checkpoint Directory does not exist! Making directory {}".format(self.args.checkpoint))
                 os.mkdir(self.args.checkpoint)
 
-            print("Saving previous network...")
-            temp_file = os.path.join(self.args.checkpoint, 'temp.pth.tar')
-            self.nnet.save_checkpoint(temp_file)
+            #print("Saving previous network...")
+            #temp_file = os.path.join(self.args.checkpoint, 'temp.pth.tar')
+            #self.nnet.save_checkpoint(temp_file)
 
             # Previous network
-            self.pnet.load_checkpoint(temp_file)
+            #self.pnet.load_checkpoint(temp_file)
             pmcts = MCTS(self.game, self.pnet, self.args)
 
             # Train the new network
-            print(f"Training on {len(trainExamples)} examples...")
             self.nnet.train(trainExamples)
             nmcts = MCTS(self.game, self.nnet, self.args)
 
@@ -160,13 +161,14 @@ class Coach():
                 log.info('ACCEPTING NEW MODEL')
                 is_best = True
 
-            checkpoint_file = os.path.join(self.args.checkpoint, self.getCheckpointFile(i))
-            self.nnet.save_checkpoint(checkpoint_file)
-            self.saveTrainExamples(checkpoint_file)
             if is_best:
-                best_file = os.path.join(self.args.checkpoint_dir, 'best.pth.tar')
-                relink(checkpoint_file, best_file)
-                relink(checkpoint_file + ".examples", best_file + ".examples")
+                best_file = os.path.join(self.args.checkpoint, 'best.pth.tar')
+                self.nnet.save_checkpoint(best_file)
+                self.saveTrainExamples(best_file)
+                self.pnet.load_checkpoint(best_file)
+            else:
+                self.nnet.load_checkpoint(temp_checkpoint)
+
 
     def getCheckpointFile(self, iteration):
         return 'checkpoint_' + str(iteration) + '.pth.tar'
