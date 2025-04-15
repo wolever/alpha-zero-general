@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from Game import Game
 from colorist import Color
@@ -208,6 +209,8 @@ _player_idx = {
 def assert_sign_eq(a: int, b: int):
     assert (a < 0) == (b < 0), f"assert_sign_eq: {a}, {b}"
 
+_counter = 0
+
 class Board:
     arr: np.ndarray[int, int]
 
@@ -220,7 +223,9 @@ class Board:
 
     @classmethod
     def get_initial_arr(cls) -> np.ndarray[int, int]:
+        global _counter
         arr = cls.get_arr()
+        _counter += 1
         arr[-2:] = [15, 16]
         return arr
 
@@ -447,23 +452,23 @@ class JGGame(Game):
 
         if board.coins_on_board(player) + board.coins_to_add(player) == 0:
             # Player has no coins remaining
-            #print("Game win: player has no coins remaining")
-            #board.display()
+            #  print("Game win: player has no coins remaining")
+            #  board.display()
             return -1
 
         if board.coins_on_board(-player) + board.coins_to_add(-player) == 0:
             # Opponent has no coins remaining
-            #print("Game win: opponent has no coins remaining")
-            #print("Player 1:", board.coins_to_add(1), board.coins_on_board(1))
-            #print("Player 2:", board.coins_to_add(-1), board.coins_on_board(-1))
-            #board.display()
+            #  print("Game win: opponent has no coins remaining")
+            #  print("Player 1:", board.coins_to_add(1), board.coins_on_board(1))
+            #  print("Player 2:", board.coins_to_add(-1), board.coins_on_board(-1))
+            #  board.display()
             #breakpoint()
             return 1
 
         if board.coins_at_idx(player=player, idx=PLAYER_CITY_IDXS[player]):
             # Player's city has coins on it
-            #print("Game win: player's city has coins on it")
-            #board.display()
+            # print("Game win: player's city has coins on it")
+            # board.display()
             return -1
 
         if board.coins_at_idx(player=player, idx=PLAYER_CITY_IDXS[-player]):

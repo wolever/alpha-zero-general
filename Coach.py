@@ -53,68 +53,84 @@ class Coach():
                            the player eventually won the game, else -1.
         """
         trainExamples = []
-        board = self.game.getInitBoard()
-        self.curPlayer = 1
+        curPlayer = 1
+        canonicalBoard = self.game.getInitBoard()
         episodeStep = 0
 
         from JGGame import Board, action_unpack
-
-        board_stack = [None] * 10
+        verbose = False
 
         while True:
-
             episodeStep += 1
-            canonicalBoard = self.game.getCanonicalForm(board, self.curPlayer)
             temp = int(episodeStep < self.args.tempThreshold)
 
             pi = self.mcts.getActionProb(canonicalBoard, temp=temp)
             sym = self.game.getSymmetries(canonicalBoard, pi)
             for b, p in sym:
-                trainExamples.append([b, self.curPlayer, p, None])
+                trainExamples.append([b, curPlayer, p, None])
 
             action = np.random.choice(len(pi), p=pi)
 
             # DW note: this appears to be a bug; it should be using player=1 and the canonical board
             #board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
-            board, self.curPlayer = self.game.getNextState(canonicalBoard, 1, action)
-            board_stack[episodeStep % len(board_stack)] = (episodeStep, board)
+            nextBoard, nextPlayer = self.game.getNextState(canonicalBoard, 1, action)
+            #print("Next player:", nextPlayer)
+            #print("Next board:")
+            #Board(nextBoard).display()
 
-            r = self.game.getGameEnded(board, self.curPlayer)
+            if nextPlayer != 1:
+                curPlayer = nextPlayer
+                canonicalBoard = self.game.getCanonicalForm(nextBoard, nextPlayer)
+            else:
+                canonicalBoard = nextBoard
+
+            r = self.game.getGameEnded(canonicalBoard, 1)
 
             if r != 0:
                 # Scale reward based on number of turns
-                min_turns = 10
-                max_turns = 50
-                min_scale = 0.25  # Minimum reward multiplier
 
-                # Calculate the reward scaling factor (from 1.0 to min_scale)
-                if episodeStep <= min_turns:
-                    scale = 1.0
-                elif episodeStep >= max_turns:
-                    scale = min_scale
-                else:
-                    scale = 1.0 - (1.0 - min_scale) * (episodeStep - min_turns) / (max_turns - min_turns)
-
-                # Process each example with the appropriate scaled reward
                 result = []
+                if verbose:
+                    print("Ending player:", curPlayer)
+                    print("Ending result:", r)
+                    print("Ending board:")
+                    Board(canonicalBoard).display()
+
                 for x in trainExamples:
+                    player_perspective = r * x[1]
+                    is_win = player_perspective > 0
+                    min_turns = 10
+                    max_turns = 75 if is_win else 20
+                    min_scale = 0.2
+
+                    # Calculate the reward scaling factor (from 1.0 to min_scale)
+                    if episodeStep <= min_turns:
+                        scale = 1.0
+                    elif episodeStep >= max_turns:
+                        scale = min_scale
+                    else:
+                        scale = 1.0 - (1.0 - min_scale) * (episodeStep - min_turns) / (max_turns - min_turns)
+
+                    # Process each example with the appropriate scaled reward
                     # Determine if player won or lost
-                    player_perspective = r * ((-1) ** (x[1] != self.curPlayer))
 
                     # Scale the reward according to the number of turns
-                    scaled_reward = player_perspective * scale
+                    scaled_reward = player_perspective * scale * (0.2 if is_win else 1)
+                    if verbose:
+                        print(f"Board reward: {scaled_reward}")
+                        Board(x[0]).display()
 
                     result.append((x[0], x[2], scaled_reward))
 
+                #print("Done!")
+                #breakpoint()
                 return result
 
             if episodeStep > 250:
                 from JGGame import action_unpack
                 print("STUCK IN LOOP")
-                print(self.curPlayer)
-                for _, past_board in sorted(board_stack, key=lambda x: x[0]):
-                    Board(past_board).display()
-                Board(board).display()
+                print(curPlayer)
+                Board(self.game.getCanonicalForm(canonicalBoard, curPlayer)).display()
                 print(action, '=', action_unpack(action))
                 return []
 

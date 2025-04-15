@@ -29,7 +29,7 @@ class Arena():
         self.player1 = player1
         self.player2 = player2
         self.game = game
-        self.display = display
+        self.display = display or self.game.display
 
     def playGame(self, verbose=False):
         """
@@ -46,6 +46,8 @@ class Arena():
         board = self.game.getInitBoard()
         it = 0
 
+        verbose = False
+
         for player in players[0], players[2]:
             if hasattr(player, "startGame"):
                 player.startGame()
@@ -54,12 +56,11 @@ class Arena():
             it += 1
             if verbose:
                 assert self.display
-                print("Turn ", str(it), "Player ", str(curPlayer))
-                self.display(board)
-            canonical_board = self.game.getCanonicalForm(board, curPlayer)
-            action = players[curPlayer + 1](canonical_board)
+                print(f"Starting turn {it} for player {curPlayer}")
+                self.display(self.game.getCanonicalForm(board, curPlayer))
 
-            valids = self.game.getValidMoves(canonical_board, 1)
+            action = players[curPlayer + 1](board)
+            valids = self.game.getValidMoves(board, 1)
 
             if valids[action] == 0:
                 log.error(f'Action {action} is not valid!')
@@ -74,9 +75,14 @@ class Arena():
             #print("Player", curPlayer, "playing action", action)
             #print("Board before move:")
             #self.game.display(board)
-            board, curPlayer = self.game.getNextState(canonical_board, 1, action)
+            newBoard, newPlayer = self.game.getNextState(board, 1, action)
             #print("Board after move:")
             #self.game.display(board)
+            if newPlayer == -1:
+                curPlayer *= -1
+                board = self.game.getCanonicalForm(newBoard, -1)
+            else:
+                board = newBoard
 
             if it > 250:
                 from JGGame import action_unpack
@@ -86,8 +92,9 @@ class Arena():
                 print(action, '=', action_unpack(action))
                 break
 
-        print(f"Game over! Player {curPlayer} won after {it} turns")
-        self.game.display(board)
+        winner = curPlayer * self.game.getGameEnded(board, 1)
+        print(f"Game over! Player {winner} won after {it} turns")
+        self.game.display(self.game.getCanonicalForm(board, curPlayer))
 
         for player in players[0], players[2]:
             if hasattr(player, "endGame"):
@@ -97,7 +104,7 @@ class Arena():
             assert self.display
             print("Game over: Turn ", str(it), "Result ", str(self.game.getGameEnded(board, 1)))
             self.display(board)
-        return curPlayer * self.game.getGameEnded(board, curPlayer)
+        return winner
 
     def playGames(self, num, verbose=False):
         """

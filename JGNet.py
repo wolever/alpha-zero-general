@@ -163,11 +163,6 @@ class NNetWrapper(NeuralNet):
 
         # preparing input
         board = torch.FloatTensor(board.astype(np.float64))
-        args.device = (
-            'cuda' if args.cuda else
-            'mps' if args.mps else
-            'cpu'
-        )
         board = board.contiguous().to(args.device)
         board = board.view(1, self.board_x, self.board_y)
         self.nnet.eval()
@@ -190,6 +185,6 @@ class NNetWrapper(NeuralNet):
         # https://github.com/pytorch/examples/blob/master/imagenet/main.py#L98
         if not os.path.exists(filename):
             raise ValueError("No model in path {}".format(filename))
-        map_location = None if (args.cuda or args.mps) else 'cpu'
+        map_location = args.device
         checkpoint = torch.load(filename, map_location=map_location)
         self.nnet.load_state_dict(checkpoint['state_dict'])
