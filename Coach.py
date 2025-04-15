@@ -82,7 +82,31 @@ class Coach():
             r = self.game.getGameEnded(board, self.curPlayer)
 
             if r != 0:
-                return [(x[0], x[2], r * ((-1) ** (x[1] != self.curPlayer))) for x in trainExamples]
+                # Scale reward based on number of turns
+                min_turns = 10
+                max_turns = 50
+                min_scale = 0.25  # Minimum reward multiplier
+
+                # Calculate the reward scaling factor (from 1.0 to min_scale)
+                if episodeStep <= min_turns:
+                    scale = 1.0
+                elif episodeStep >= max_turns:
+                    scale = min_scale
+                else:
+                    scale = 1.0 - (1.0 - min_scale) * (episodeStep - min_turns) / (max_turns - min_turns)
+
+                # Process each example with the appropriate scaled reward
+                result = []
+                for x in trainExamples:
+                    # Determine if player won or lost
+                    player_perspective = r * ((-1) ** (x[1] != self.curPlayer))
+
+                    # Scale the reward according to the number of turns
+                    scaled_reward = player_perspective * scale
+
+                    result.append((x[0], x[2], scaled_reward))
+
+                return result
 
             if episodeStep > 250:
                 from JGGame import action_unpack
@@ -106,7 +130,7 @@ class Coach():
         for i in range(1, self.args.numIters + 1):
             # bookkeeping
             log.info(f'Starting Iter #{i} ...')
-            temp_checkpoint = os.path.join(self.args.checkpoint, f'temp.pth.tar')
+            temp_checkpoint = os.path.join(self.args.checkpoint, 'temp.pth.tar')
             self.nnet.save_checkpoint(temp_checkpoint)
             # examples of the iteration
             if not self.skipFirstSelfPlay or i > 1:
@@ -156,22 +180,13 @@ class Coach():
             log.info('NEW/PREV WINS : %d / %d ; DRAWS : %d' % (nwins, pwins, draws))
             if pwins + nwins == 0 or float(nwins) / (pwins + nwins) < self.args.updateThreshold:
                 log.info('REJECTING NEW MODEL')
-                is_best = False
+                self.nnet.load_checkpoint(temp_checkpoint)
             else:
                 log.info('ACCEPTING NEW MODEL')
-                is_best = True
-
-            if is_best:
                 best_file = os.path.join(self.args.checkpoint, 'best.pth.tar')
                 self.nnet.save_checkpoint(best_file)
                 self.saveTrainExamples(best_file)
                 self.pnet.load_checkpoint(best_file)
-            else:
-                self.nnet.load_checkpoint(temp_checkpoint)
-
-
-    def getCheckpointFile(self, iteration):
-        return 'checkpoint_' + str(iteration) + '.pth.tar'
 
     def saveTrainExamples(self, checkpoint_file):
         filename = checkpoint_file + ".examples"
