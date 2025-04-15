@@ -221,7 +221,7 @@ class Board:
     @classmethod
     def get_initial_arr(cls) -> np.ndarray[int, int]:
         arr = cls.get_arr()
-        arr[-2:] = [18, 18]
+        arr[-2:] = [15, 16]
         return arr
 
     def coins_to_add(self, player: int) -> int:
@@ -349,11 +349,12 @@ class JGGame(Game):
 
         player_remaining = board.coins_to_add(player)
         opponent_remaining = board.coins_to_add(-player)
-        if player_remaining ^ opponent_remaining:
+        if player_remaining or opponent_remaining:
+            # First player plays all their coins first, then the opponent plays all their coins
             res = board.arr, (
-                -player # Opponent has coins remaining to add but we don't
-                if opponent_remaining
-                else player # We have coins remaining to add but opponent doesn't
+                player # We have coins remaining to add
+                if player_remaining
+                else -player # We've played all our coins, it's the opponent's turn
             )
             return res
         return board.arr, -player
