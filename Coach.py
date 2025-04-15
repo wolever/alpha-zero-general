@@ -34,7 +34,6 @@ class Coach():
         self.args = args
         self.mcts = MCTS(self.game, self.nnet, self.args)
         self.trainExamplesHistory = []  # history of examples from args.numItersForTrainExamplesHistory latest iterations
-        self.skipFirstSelfPlay = False  # can be overriden in loadTrainExamples()
 
     def executeEpisode(self):
         """
@@ -99,7 +98,7 @@ class Coach():
                 for x in trainExamples:
                     player_perspective = r * x[1]
                     is_win = player_perspective > 0
-                    min_turns = 10
+                    min_turns = 5
                     max_turns = 75 if is_win else 20
                     min_scale = 0.2
 
@@ -149,15 +148,14 @@ class Coach():
             temp_checkpoint = os.path.join(self.args.checkpoint, 'temp.pth.tar')
             self.nnet.save_checkpoint(temp_checkpoint)
             # examples of the iteration
-            if not self.skipFirstSelfPlay or i > 1:
-                iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
+            iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
 
-                for _ in tqdm(range(self.args.numEps), desc="Self Play"):
-                    self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
-                    iterationTrainExamples += self.executeEpisode()
+            for _ in tqdm(range(self.args.numEps), desc="Self Play"):
+                self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
+                iterationTrainExamples += self.executeEpisode()
 
-                # save the iteration examples to the history
-                self.trainExamplesHistory.append(iterationTrainExamples)
+            # save the iteration examples to the history
+            self.trainExamplesHistory.append(iterationTrainExamples)
 
             while len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory:
                 log.warning(
@@ -224,6 +222,3 @@ class Coach():
             with open(examplesFile, "rb") as f:
                 self.trainExamplesHistory = Unpickler(f).load()
             log.info('Loading done!')
-
-            # examples based on the model were already collected (loaded)
-            self.skipFirstSelfPlay = True
