@@ -115,7 +115,7 @@ class Coach():
                     # Determine if player won or lost
 
                     # Scale the reward according to the number of turns
-                    scaled_reward = player_perspective * scale * (0.2 if is_win else 1)
+                    scaled_reward = player_perspective * scale * (0.75 if is_win else 1)
                     if verbose:
                         print(f"Board reward: {scaled_reward}")
                         Board(x[0]).display()
@@ -193,8 +193,9 @@ class Coach():
                           lambda x: np.argmax(nmcts.getActionProb(x, temp=0)), self.game)
             pwins, nwins, draws = arena.playGames(self.args.arenaCompare)
 
-            log.info('NEW/PREV WINS : %d / %d ; DRAWS : %d' % (nwins, pwins, draws))
-            if pwins + nwins == 0 or float(nwins) / (pwins + nwins) < self.args.updateThreshold:
+            log.info('PRV/NEW WINS : %d / %d ; DRAWS : %d' % (pwins, nwins, draws))
+            is_new_better = float(nwins) / ((pwins + nwins) or 1) > self.args.updateThreshold
+            if not is_new_better:
                 log.info('REJECTING NEW MODEL')
                 self.nnet.load_checkpoint(temp_checkpoint)
             else:
