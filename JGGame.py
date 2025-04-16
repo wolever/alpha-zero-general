@@ -61,7 +61,7 @@ def _gex_axial_to_index_map(board_iter):
 
 ax_to_ix, ix_to_ax = _gex_axial_to_index_map(generate_board())
 
-map_ix_flip_map = [
+ix_flip_map = [
   ax_to_ix[qr]
   for qr in generate_board(flip=True, mirror=True)
 ]
@@ -127,24 +127,35 @@ def parse_idxs(positions: str):
             res.append(ax_to_ix[(int(q), int(r))])
     return res
 
-# Board layout:
-#                  ( 0  4) ( 1  4) ( 2  4) ( 3  4) ( 4  4)
-#
-#              (-1  3) ( 0  3) ( 1  3) ( 2  3) ( 3  3) ( 4  3)
-#
-#          (-2  2) (-1  2) ( 0  2) ( 1  2) ( 2  2) ( 3  2) ( 4  2)
-#
-#      (-3  1) (-2  1) (-1  1) ( 0  1) ( 1  1) ( 2  1) ( 3  1) ( 4  1)
-#
-#  (-4  0) (-3  0) (-2  0) (-1  0) ( 0  0) ( 1  0) ( 2  0) ( 3  0) ( 4  0)
-#
-#      (-4 -1) (-3 -1) (-2 -1) (-1 -1) ( 0 -1) ( 1 -1) ( 2 -1) ( 3 -1)
-#
-#          (-4 -2) (-3 -2) (-2 -2) (-1 -2) ( 0 -2) ( 1 -2) ( 2 -2)
-#
-#              (-4 -3) (-3 -3) (-2 -3) (-1 -3) ( 0 -3) ( 1 -3)
-#
-#                  (-4 -4) (-3 -4) (-2 -4) (-1 -4) ( 0 -4)
+"""
+Board layout:
+                  ( 0  4) ( 1  4) ( 2  4) ( 3  4) ( 4  4)
+                    0/60    1/59    2/58    3/57    4/56
+
+              (-1  3) ( 0  3) ( 1  3) ( 2  3) ( 3  3) ( 4  3)
+                5/55    6/54    7/53    8/52    9/51   10/50
+
+          (-2  2) (-1  2) ( 0  2) ( 1  2) ( 2  2) ( 3  2) ( 4  2)
+           11/49   12/48   13/47   14/46   15/45   16/44   17/43
+
+      (-3  1) (-2  1) (-1  1) ( 0  1) ( 1  1) ( 2  1) ( 3  1) ( 4  1)
+       18/42   19/41   20/40   21/39   22/38   23/37   24/36   25/35
+
+  (-4  0) (-3  0) (-2  0) (-1  0) ( 0  0) ( 1  0) ( 2  0) ( 3  0) ( 4  0)
+   26/34   27/33   28/32   29/31   30/30   31/29   32/28   33/27   34/26
+
+      (-4 -1) (-3 -1) (-2 -1) (-1 -1) ( 0 -1) ( 1 -1) ( 2 -1) ( 3 -1)
+       35/25   36/24   37/23   38/22   39/21   40/20   41/19   42/18
+
+          (-4 -2) (-3 -2) (-2 -2) (-1 -2) ( 0 -2) ( 1 -2) ( 2 -2)
+           43/17   44/16   45/15   46/14   47/13   48/12   49/11
+
+              (-4 -3) (-3 -3) (-2 -3) (-1 -3) ( 0 -3) ( 1 -3)
+               50/10   51/ 9   52/ 8   53/ 7   54/ 6   55/ 5
+
+                  (-4 -4) (-3 -4) (-2 -4) (-1 -4) ( 0 -4)
+                   56/ 4   57/ 3   58/ 2   59/ 1   60/ 0
+"""
 
 # Board is a 2D array of [coin_count, ..., player0_coin_count, player1_coin_count]
 # where the coin_count is positive for player 1, and negative for player -1
@@ -294,13 +305,13 @@ class Board:
     def canonicalize_idx(self, player: int, idx: int) -> int:
         if player == 1:
             return idx
-        return map_ix_flip_map[idx]
+        return ix_flip_map[idx]
 
     def canonicalize_arr(self, player: int) -> np.ndarray[int, int]:
         if player == 1:
             return self.arr
         res = self.arr.copy()
-        res[:-2] = res[map_ix_flip_map] * -1
+        res[:-2] = res[ix_flip_map] * -1
         res[-2], res[-1] = res[-1], res[-2]
         return res
 

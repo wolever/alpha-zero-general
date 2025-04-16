@@ -57,6 +57,7 @@ class NNetWrapper(NeuralNet):
                 target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
                 # predict
+                raise AssertionError("Making sure we don't get here")
                 if args.device:
                     boards, target_pis, target_vs = (
                         boards.contiguous().to(args.device),

@@ -137,6 +137,8 @@ class NNetWrapper(NeuralNet):
                         target_pis.contiguous().to(args.device),
                         target_vs.contiguous().to(args.device)
                     )
+                else:
+                    raise AssertionError("No GPU device!")
 
                 # compute output
                 out_pi, out_v = self.nnet(boards)
