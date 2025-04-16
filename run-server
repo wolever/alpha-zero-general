@@ -9,4 +9,4 @@ set -eu
 set -o pipefail
 cd "$(dirname "$0")"
 
-uv run fastapi dev server.py --port 6669
+uv run fastapi dev server.py --port 8189

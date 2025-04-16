@@ -63,7 +63,7 @@ ax_to_ix, ix_to_ax = _gex_axial_to_index_map(generate_board())
 
 map_ix_flip_map = [
   ax_to_ix[qr]
-  for qr in generate_board(flip=True)
+  for qr in generate_board(flip=True, mirror=True)
 ]
 
 def adjacent_idxs(idx: int, player_idx: int):
@@ -257,8 +257,9 @@ class Board:
         return -self.arr[idx]
 
     def src_idx_player_to_idx(self, player: int, src_idx_player: int) -> int:
+        assert player == 1, f"src_idx_player_to_idx: {player}"
         arr = self.arr[:-2]
-        player_coins = ((arr > 0) if player > 0 else (arr < 0))
+        player_coins = (arr > 0)
         player_coin_idxs = np.where(player_coins)[0]
         return player_coin_idxs[src_idx_player]
 
@@ -289,6 +290,11 @@ class Board:
     def coins_on_board(self, player: int) -> int:
         arr = self.arr[:-2]
         return np.abs(arr[(arr > 0) if player > 0 else (arr < 0)]).sum()
+
+    def canonicalize_idx(self, player: int, idx: int) -> int:
+        if player == 1:
+            return idx
+        return map_ix_flip_map[idx]
 
     def canonicalize_arr(self, player: int) -> np.ndarray[int, int]:
         if player == 1:
@@ -432,8 +438,11 @@ class JGGame(Game):
                     if adj_idx_coins < 0:
                         # Can't split into an opponent's stack
                         continue
-                    max_split_count = min(0b1111, board.coins_at_idx(player=player, idx=src_idx) + 1)
-                    for split_count in range(1, max_split_count):
+                    max_split_count = min(
+                        0b1111 - adj_idx_coins,
+                        board.coins_at_idx(player=player, idx=src_idx),
+                    )
+                    for split_count in range(1, max_split_count + 1):
                         add_action(
                             False,
                             src_idx_player,

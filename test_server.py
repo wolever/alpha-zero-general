@@ -12,7 +12,7 @@ board_arr = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 board_list = board_arr.tolist()
 
 # API URL
-url = "http://localhost:6669/get-moves"
+url = "http://localhost:8189/get-moves"
 
 # Make the request
 try:
@@ -43,7 +43,7 @@ except Exception as e:
 
 # Also test the health endpoint
 try:
-    health_response = requests.get("http://localhost:6669/health")
+    health_response = requests.get("http://localhost:8189/health")
     print(f"Health check status: {health_response.status_code}")
     print(health_response.json())
 except Exception as e:

@@ -12,7 +12,7 @@ import os
 # Add the AlphaZero directory to the path to import the modules
 sys.path.append(os.path.join(os.path.dirname(__file__), 'engine/ml/alpha-zero-general'))
 
-from JGGame import JGGame, action_unpack, action_pack
+from JGGame import Board, JGGame, action_unpack, action_pack
 from JGNet import NNetWrapper
 from MCTS import MCTS
 from utils import dotdict
@@ -57,11 +57,12 @@ def get_model() -> MCTS:
 
 # Models for request and response
 class BoardRequest(BaseModel):
+    player_idx: int
     board: List[int]
 
 class MoveResponse(BaseModel):
     type: str  # "move", "split", or "skip"
-    src_idx: int
+    src_idx: Optional[int]
     dst_idx: int
     count: int
     weight: float
@@ -81,30 +82,58 @@ def get_moves(request: BoardRequest):
         JSON object with a list of moves and their probabilities
     """
     mcts = get_model()
-    # Convert the board to a numpy array
     board_arr = np.array(request.board, dtype=np.int8)
+    board = Board(board_arr)
 
-    # Get action probabilities using MCTS
-    a_probs = np.array(mcts.getActionProb(board_arr))
+    player = {
+        0: 1,
+        1: -1,
+    }[request.player_idx]
+
+    print("Player:", player)
+    board.display()
+
+    board_canonical = Board(game.getCanonicalForm(board_arr, player))
+    board_canonical.display()
+
+    a_probs = np.array(mcts.getActionProb(board_canonical.arr))
 
     # Get the indices of non-zero probabilities
     a_where = np.where(a_probs > 0)[0].astype(np.int32)
 
-    # Format the response with move details and probabilities
+    def fix_idx(idx: int) -> int:
+        if player == 1:
+            return int(idx)
+        return int(board.canonicalize_idx(player, idx))
+
     moves = []
     for action in a_where:
         skip, src_idx_player, dst_idx, count = action_unpack(action)
 
-        move_type = "skip" if skip else "move"  # Assuming "split" might be determined elsewhere
+        is_add = board_canonical.coins_to_add(1) > 0
+        move_type = (
+            "add" if is_add else
+            "skip" if skip else
+            "move"
+        )
+
+        if not is_add:
+            print("src_idx_player:", src_idx_player)
+            print("board_idx:", board_canonical.src_idx_player_to_idx(1, src_idx_player))
+            print("fix_idx:", fix_idx(board_canonical.src_idx_player_to_idx(1, src_idx_player)))
 
         moves.append({
             "type": move_type,
-            "src_idx": src_idx_player,
-            "dst_idx": dst_idx,
-            "count": count,
-            "weight": float(a_probs[action])  # Convert to float for JSON serialization
+            "src_idx": (
+                None if is_add else
+                fix_idx(board_canonical.src_idx_player_to_idx(1, src_idx_player))
+            ),
+            "dst_idx": fix_idx(dst_idx),
+            "count": int(count),
+            "weight": float(a_probs[action])
         })
 
+    print(moves)
     return {"moves": moves}
 
 @app.get("/health")
@@ -114,4 +143,4 @@ def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=6669, reload=True)
+    uvicorn.run("server:app", host="0.0.0.0", port=8189, reload=True)
