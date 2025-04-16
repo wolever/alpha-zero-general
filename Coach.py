@@ -9,7 +9,7 @@ import numpy as np
 from tqdm import tqdm
 
 from Arena import Arena
-from JGGame import JGGame
+from JGGame import MAX_TURNS, JGGame
 from MCTS import MCTS
 
 log = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ class Coach():
                 for x in trainExamples:
                     player_perspective = r * x[1]
                     is_win = player_perspective > 0
-                    min_turns = 5
+                    min_turns = 20 if is_win else 7
                     max_turns = 75 if is_win else 20
                     min_scale = 0.2
 
@@ -125,7 +125,7 @@ class Coach():
                 #breakpoint()
                 return result
 
-            if episodeStep > 250:
+            if episodeStep > MAX_TURNS:
                 from JGGame import action_unpack
                 print("STUCK IN LOOP")
                 print(curPlayer)

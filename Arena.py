@@ -2,7 +2,7 @@ import logging
 
 from tqdm import tqdm
 
-from JGGame import JGGame
+import JGGame
 
 log = logging.getLogger(__name__)
 
@@ -12,7 +12,7 @@ class Arena():
     An Arena class where any 2 agents can be pit against each other.
     """
 
-    game: JGGame
+    game: JGGame.JGGame
 
     def __init__(self, player1, player2, game, display=None):
         """
@@ -84,12 +84,11 @@ class Arena():
             else:
                 board = newBoard
 
-            if it > 250:
-                from JGGame import action_unpack
+            if it > JGGame.MAX_TURNS:
                 print("STUCK IN LOOP")
                 print(curPlayer)
                 print(board)
-                print(action, '=', action_unpack(action))
+                print(action, '=', JGGame.action_unpack(action))
                 break
 
         winner = curPlayer * self.game.getGameEnded(board, 1)

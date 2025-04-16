@@ -4,6 +4,7 @@ from Game import Game
 from colorist import Color
 
 BOARD_SIZE = 5
+MAX_TURNS = 150
 
 def generate_board(side_length: int = BOARD_SIZE, mirror: bool = False, flip: bool = False):
   """ Generates a hex board with side_length tiles on each side,
@@ -403,7 +404,7 @@ class JGGame(Game):
             #self.getNextState(board_arr, player, action)
             if dst_idx == PLAYER_CITY_IDXS[-player]:
                 raise GameWin(action)
-            #check_board, _ = self.getNextState(board, player, action)
+            check_board, _ = self.getNextState(board_arr, player, action)
             #if np.any(check_board < 0):
             #    breakpoint()
             actions.append(action)
