@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from tqdm import tqdm
+import wandb
 
 import JGGame
 
@@ -128,7 +129,11 @@ class Arena():
         oneWon = 0
         twoWon = 0
         draws = 0
+        game_index = 0
+
+        # First half: player1 starts.
         for _ in tqdm(range(num), desc="Arena.playGames (1)"):
+            game_index += 1
             gameResult = self.playGame(verbose=verbose)
             if gameResult == 1:
                 oneWon += 1
@@ -137,9 +142,22 @@ class Arena():
             else:
                 draws += 1
 
+            # Log each arena game outcome to Weights & Biases, if active.
+            if wandb.run is not None:
+                wandb.log(
+                    {
+                        "arena/game_index": game_index,
+                        "arena/phase": 1,
+                        "arena/starting_player": 1,
+                        "arena/game_result": gameResult,
+                    }
+                )
+
         self.player1, self.player2 = self.player2, self.player1
 
+        # Second half: player2 starts.
         for _ in tqdm(range(num), desc="Arena.playGames (2)"):
+            game_index += 1
             gameResult = self.playGame(verbose=verbose)
             if gameResult == -1:
                 oneWon += 1
@@ -147,5 +165,15 @@ class Arena():
                 twoWon += 1
             else:
                 draws += 1
+
+            if wandb.run is not None:
+                wandb.log(
+                    {
+                        "arena/game_index": game_index,
+                        "arena/phase": 2,
+                        "arena/starting_player": 2,
+                        "arena/game_result": gameResult,
+                    }
+                )
 
         return oneWon, twoWon, draws

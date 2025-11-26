@@ -10,6 +10,7 @@ import torch.optim as optim
 from NeuralNet import NeuralNet
 from JGGame import JGGame
 from tqdm import tqdm
+import wandb
 
 from utils import dotdict, AverageMeter
 
@@ -112,18 +113,19 @@ class NNetWrapper(NeuralNet):
         examples: list of examples, each example is of form (board, pi, v)
         """
         optimizer = optim.Adam(self.nnet.parameters())
-        print(f"Training net on {len(examples)} examples...")
+        num_examples = len(examples)
+        print(f"Training net on {num_examples} examples...")
 
         for epoch in range(args.epochs):
             self.nnet.train()
             pi_losses = AverageMeter()
             v_losses = AverageMeter()
 
-            batch_count = int(len(examples) / args.batch_size)
+            batch_count = int(num_examples / args.batch_size)
 
             t = tqdm(range(batch_count), desc=f"Epoch {epoch + 1:2d}")
             for _ in t:
-                sample_ids = np.random.randint(len(examples), size=args.batch_size)
+                sample_ids = np.random.randint(num_examples, size=args.batch_size)
                 boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
                 boards = torch.FloatTensor(np.array(boards).astype(np.float64))
                 target_pis = torch.FloatTensor(np.array(pis))
@@ -154,6 +156,18 @@ class NNetWrapper(NeuralNet):
                 optimizer.zero_grad()
                 total_loss.backward()
                 optimizer.step()
+
+            # End of epoch: log average losses for this epoch to W&B if active.
+            if wandb.run is not None:
+                wandb.log(
+                    {
+                        "train/epoch": epoch + 1,
+                        "train/pi_loss": pi_losses.avg,
+                        "train/v_loss": v_losses.avg,
+                        "train/total_loss": pi_losses.avg + v_losses.avg,
+                        "train/num_examples": num_examples,
+                    }
+                )
 
     def predict(self, board):
         """

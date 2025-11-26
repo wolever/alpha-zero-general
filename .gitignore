@@ -11,4 +11,4 @@ checkpoints-*
 
 # For PyCharm users
 .idea/
-
+wandb/

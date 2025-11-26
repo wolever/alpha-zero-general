@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from tqdm import tqdm
+import wandb
 
 from Arena import Arena
 from JGGame import JGGame
@@ -165,6 +166,8 @@ class Coach:
                 try:
                     self.runIteration(i)
                     error_count = 0
+                    if wandb.run is not None:
+                        wandb.log({"iteration": i, "iteration_status": "ok"})
                 except Exception as e:
                     error_count += 1
                     giving_up = error_count > 10
@@ -177,6 +180,14 @@ class Coach:
                         }
                     )
                     log.error(f"Error in iteration {i}: {e}")
+                    if wandb.run is not None:
+                        wandb.log(
+                            {
+                                "iteration": i,
+                                "iteration_status": "error",
+                                "iteration_error_count": error_count,
+                            }
+                        )
                     if giving_up:
                         log.error(
                             f"Giving up on iteration {i} after {error_count} errors"
@@ -231,6 +242,13 @@ class Coach:
         with self.args.time("train") as data:
             self.nnet.train(trainExamples)
             data["num_examples"] = len(trainExamples)
+            if wandb.run is not None:
+                wandb.log(
+                    {
+                        "train/num_examples": len(trainExamples),
+                        "iteration": i,
+                    }
+                )
 
         pmcts = MCTS(self.game, self.pnet, self.args)
         nmcts = MCTS(self.game, self.nnet, self.args)
@@ -256,6 +274,21 @@ class Coach:
                     "is_new_better": is_new_better,
                 }
             )
+            if wandb.run is not None:
+                total_played = pwins + nwins + draws
+                wandb.log(
+                    {
+                        "iteration": i,
+                        "arena/prev_wins": pwins,
+                        "arena/new_wins": nwins,
+                        "arena/draws": draws,
+                        "arena/total_games": total_played,
+                        "arena/new_win_rate": (
+                            float(nwins) / total_played if total_played else 0.0
+                        ),
+                        "arena/is_new_better": float(is_new_better),
+                    }
+                )
 
         log.info("PRV/NEW WINS : %d / %d ; DRAWS : %d" % (pwins, nwins, draws))
         if not is_new_better:

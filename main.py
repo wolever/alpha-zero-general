@@ -11,6 +11,8 @@ from Coach import Coach
 from pydantic import BaseModel, PrivateAttr
 from datetime import datetime
 
+import wandb
+
 # from othello.OthelloGame import OthelloGame as Game
 from JGGame import JGGame as Game
 from JGNet import NNetWrapper as nn
@@ -75,7 +77,13 @@ class TrainingArgs(BaseModel):
         for d in self._timeDataStack:
             res_data.update(d)
         res_data.update(data)
-        self.write_log(step, {"duration": time.time() - start, **data})
+        duration = time.time() - start
+        payload = {"duration": duration, **data}
+        self.write_log(step, payload)
+
+        # Also log timings and associated metadata to Weights & Biases if a run is active.
+        if wandb.run is not None:
+            wandb.log({f"time/{step}": duration, **payload})
 
     def close(self):
         outf = getattr(self, "_outf", None)
@@ -106,6 +114,14 @@ root_logger.addHandler(file_handler)
 
 def main():
     log.info("Starting run %s...", args.runId)
+
+    # Initialize Weights & Biases run for this training session.
+    wandb.init(
+        entity="wolever",
+        project="alpha-zero-jg",
+        name=args.runId,
+        config=args.model_dump(),
+    )
     log.info("Loading %s...", Game.__name__)
     g = Game()
 
@@ -130,9 +146,12 @@ def main():
     log.info("Starting the learning process 🎉")
     try:
         args.write_log("starting", args.model_dump())
+        wandb.log({"event": "training_start"})
         c.learn()
     finally:
         args.close()
+        if wandb.run is not None:
+            wandb.finish()
 
 
 if __name__ == "__main__":
