@@ -5,66 +5,70 @@ from colorist import Color
 
 BOARD_SIZE = 5
 
-def generate_board(side_length: int = BOARD_SIZE, mirror: bool = False, flip: bool = False):
-  """ Generates a hex board with side_length tiles on each side,
-  using axial coordinates.
 
-  For example::
+def generate_board(
+    side_length: int = BOARD_SIZE, mirror: bool = False, flip: bool = False
+):
+    """Generates a hex board with side_length tiles on each side,
+    using axial coordinates.
 
-    >>> print_board(generate_board())
-            ( 0  2) ( 1  2) ( 2  2)
+    For example::
 
-        (-1  1) ( 0  1) ( 1  1) ( 2  1)
+      >>> print_board(generate_board())
+              ( 0  2) ( 1  2) ( 2  2)
 
-    (-2  0) (-1  0) ( 0  0) ( 1  0) ( 2  0)
+          (-1  1) ( 0  1) ( 1  1) ( 2  1)
 
-        (-2 -1) (-1 -1) ( 0 -1) ( 1 -1)
+      (-2  0) (-1  0) ( 0  0) ( 1  0) ( 2  0)
 
-            (-2 -2) (-1 -2) ( 0 -2)
-  """
-  board_height = 2 * side_length - 1
+          (-2 -1) (-1 -1) ( 0 -1) ( 1 -1)
 
-  start, stop, step = [
-    (side_length - 1, -side_length, -1),
-    (-side_length + 1, side_length, 1),
-  ][flip]
+              (-2 -2) (-1 -2) ( 0 -2)
+    """
+    board_height = 2 * side_length - 1
 
-  for r in range(start, stop, step):
-    row_length = board_height - abs(r)
-    row_start = max(
-      1 - side_length,
-      r - (side_length - 1),
-    )
     start, stop, step = [
-      (row_start, row_start + row_length, 1),
-      (row_start + row_length- 1, row_start - 1, -1),
-    ][mirror]
-    for q in range(start, stop, step):
-      yield (q, r)
+        (side_length - 1, -side_length, -1),
+        (-side_length + 1, side_length, 1),
+    ][flip]
+
+    for r in range(start, stop, step):
+        row_length = board_height - abs(r)
+        row_start = max(
+            1 - side_length,
+            r - (side_length - 1),
+        )
+        start, stop, step = [
+            (row_start, row_start + row_length, 1),
+            (row_start + row_length - 1, row_start - 1, -1),
+        ][mirror]
+        for q in range(start, stop, step):
+            yield (q, r)
+
 
 def _print_board_iter(board, width: int, side_length: int = BOARD_SIZE):
-  height = 2 * side_length - 1
-  for row in range(height):
-    row_length = height - abs(side_length - row - 1)
-    print(" "  * ((height - row_length) * width), end="")
-    for col in range(row_length):
-      print(next(board), end="")
-    print()
+    height = 2 * side_length - 1
+    for row in range(height):
+        row_length = height - abs(side_length - row - 1)
+        print(" " * ((height - row_length) * width), end="")
+        for col in range(row_length):
+            print(next(board), end="")
+        print()
+
 
 def _gex_axial_to_index_map(board_iter):
-  ax_to_index = {}
-  index_to_ax = {}
-  for i, (q, r) in enumerate(board_iter):
-    ax_to_index[(q, r)] = i
-    index_to_ax[i] = (q, r)
-  return ax_to_index, index_to_ax
+    ax_to_index = {}
+    index_to_ax = {}
+    for i, (q, r) in enumerate(board_iter):
+        ax_to_index[(q, r)] = i
+        index_to_ax[i] = (q, r)
+    return ax_to_index, index_to_ax
+
 
 ax_to_ix, ix_to_ax = _gex_axial_to_index_map(generate_board())
 
-ix_flip_map = [
-  ax_to_ix[qr]
-  for qr in generate_board(flip=True, mirror=True)
-]
+ix_flip_map = [ax_to_ix[qr] for qr in generate_board(flip=True, mirror=True)]
+
 
 def adjacent_idxs(idx: int, player_idx: int):
     q, r = ix_to_ax[idx]
@@ -88,7 +92,10 @@ def adjacent_idxs(idx: int, player_idx: int):
         res.append(idx)
     return res
 
-def flood_fill(board: np.ndarray[int, int], player_idx: int, start_idx: int, count: int):
+
+def flood_fill(
+    board: np.ndarray[int, int], player_idx: int, start_idx: int, count: int
+):
     valid_moves = []
     # Players can't move coins into their own city
     visited = set([PLAYER_IDX_CITY_IDXS[player_idx]])
@@ -115,6 +122,7 @@ def flood_fill(board: np.ndarray[int, int], player_idx: int, start_idx: int, cou
 
     return valid_moves
 
+
 def parse_idxs(positions: str):
     res = []
     for line in positions.splitlines():
@@ -126,6 +134,7 @@ def parse_idxs(positions: str):
             q, r = bit.split()
             res.append(ax_to_ix[(int(q), int(r))])
     return res
+
 
 """
 Board layout:
@@ -185,6 +194,7 @@ _player_starting_idxs = parse_idxs("""
 player_starting_location_mask = np.zeros(_board_len, dtype=bool)
 player_starting_location_mask[_player_starting_idxs] = True
 
+
 def action_pack(skip: bool, src_idx_player: int, dst_idx: int, count: int):
     # Actions are:
     # - skip turn: action == 0b11111111111111
@@ -196,31 +206,32 @@ def action_pack(skip: bool, src_idx_player: int, dst_idx: int, count: int):
     assert 0 <= src_idx_player <= 0b1111, f"src_idx_player: {src_idx_player}"
     assert 0 <= dst_idx <= 0b111100, f"dst_idx: {dst_idx}"
     assert 1 <= count <= 0b1111, f"count: {count}"
-    return (
-       (src_idx_player << 10) |
-       (dst_idx << 4) |
-       int(count)
-    )
+    return (src_idx_player << 10) | (dst_idx << 4) | int(count)
+
 
 def action_unpack(action: int):
     if action == 0b11111111111111:
         return True, 0, 0, 0
     return (
-       False, # skip
-       (action >> 10) & 0b1111, # src_idx_player
-       (action >> 4) & 0b111111, # dst_idx
-       (action & 0b1111), # count
+        False,  # skip
+        (action >> 10) & 0b1111,  # src_idx_player
+        (action >> 4) & 0b111111,  # dst_idx
+        (action & 0b1111),  # count
     )
+
 
 _player_idx = {
     1: 0,
     -1: 1,
 }
 
+
 def assert_sign_eq(a: int, b: int):
     assert (a < 0) == (b < 0), f"assert_sign_eq: {a}, {b}"
 
+
 _counter = 0
+
 
 class Board:
     arr: np.ndarray[int, int]
@@ -245,8 +256,9 @@ class Board:
 
     def coins_to_add_deduct(self, player: int, count: int):
         self.arr[-2 + _player_idx[player]] -= count
-        assert self.arr[-2 + _player_idx[player]] >= 0,\
+        assert self.arr[-2 + _player_idx[player]] >= 0, (
             f"coins_remaining_deduct: {player=}, {count=}, {self.arr[-2 + _player_idx[player]]=}"
+        )
 
     def player_available_starting_idxs(self, player: int) -> np.ndarray[int, int]:
         assert player == 1, f"player_available_starting_idxs: {player}"
@@ -257,7 +269,7 @@ class Board:
         return np.where((arr > 0) if player > 0 else (arr < 0))[0]
 
     def coins_at_idx(self, *, player: int, idx: int) -> int:
-        """ Returns the normalized coin count at `idx` for `player`.
+        """Returns the normalized coin count at `idx` for `player`.
 
         count > 0: coins are owned by `player`
         count == 0: No coins
@@ -270,29 +282,33 @@ class Board:
     def src_idx_player_to_idx(self, player: int, src_idx_player: int) -> int:
         assert player == 1, f"src_idx_player_to_idx: {player}"
         arr = self.arr[:-2]
-        player_coins = (arr > 0)
+        player_coins = arr > 0
         player_coin_idxs = np.where(player_coins)[0]
         return player_coin_idxs[src_idx_player]
 
     def coins_deduct(self, player: int, idx: int, count: int):
-        """ Deduct `count` coins from the stack owned by `player` at `idx` """
-        assert (self.arr[idx] < 0) == (player < 0), f"coins_deduct: {player=}, {idx=}, {count=}"
+        """Deduct `count` coins from the stack owned by `player` at `idx`"""
+        assert (self.arr[idx] < 0) == (player < 0), (
+            f"coins_deduct: {player=}, {idx=}, {count=}"
+        )
         new_amount = abs(self.arr[idx])
         new_amount -= count
         if new_amount < 0:
-            print(f"ERROR: coins_deduct: {player=}, {idx=}, {count=}, {new_amount=}, {self.arr[idx]=}")
+            print(
+                f"ERROR: coins_deduct: {player=}, {idx=}, {count=}, {new_amount=}, {self.arr[idx]=}"
+            )
             self.display()
-            new_amount = 0 # hack: it's unclear why this is happening... hopefully it's not a problem :|
+            new_amount = 0  # hack: it's unclear why this is happening... hopefully it's not a problem :|
         self.arr[idx] = new_amount * player
 
     def coins_add(self, player: int, idx: int, count: int):
-        """ Add `count` coins to the board location `idx`, where `player` is the
-        owner of the coins being moved. """
+        """Add `count` coins to the board location `idx`, where `player` is the
+        owner of the coins being moved."""
         current_count = self.arr[idx]
 
         if (current_count < 0) == (player < 0):
             # Coins are being added to the player's existing stack
-            self.arr[idx] += (count * player)
+            self.arr[idx] += count * player
         else:
             # Coins are being added to an empty stack, or capturing an
             # opponent's stack.
@@ -316,12 +332,16 @@ class Board:
         return res
 
     def display(self):
-        board_bits = iter([
-            f"{Color.RED}{v}{Color.OFF} " if v > 0 else
-            f"{Color.BLUE}{abs(v)}{Color.OFF} " if v < 0 else
-            "_ "
-            for v in self.arr
-        ])
+        board_bits = iter(
+            [
+                f"{Color.RED}{v}{Color.OFF} "
+                if v > 0
+                else f"{Color.BLUE}{abs(v)}{Color.OFF} "
+                if v < 0
+                else "_ "
+                for v in self.arr
+            ]
+        )
         _print_board_iter(
             board_bits,
             width=1,
@@ -329,9 +349,11 @@ class Board:
         print("Player 1:", self.coins_to_add(1))
         print("Player 2:", self.coins_to_add(-1))
 
+
 class GameWin(Exception):
     def __init__(self, action: int):
         self.action = action
+
 
 class JGGame(Game):
     def getInitBoard(self):
@@ -345,12 +367,12 @@ class JGGame(Game):
         return 2 ** (4 + 6 + 4)
 
     def getNextState(self, board_arr: np.ndarray[int, int], player: int, action: int):
-        #print("BEFORE getNextState")
-        #print("Action:", action_unpack(action))
-        #Board(board_arr).display()
+        # print("BEFORE getNextState")
+        # print("Action:", action_unpack(action))
+        # Board(board_arr).display()
         res = self._getNextState(board_arr, player, action)
-        #print("AFTER getNextState")
-        #Board(res[0]).display()
+        # print("AFTER getNextState")
+        # Board(res[0]).display()
         return res
 
     def _getNextState(self, board_arr: np.ndarray[int, int], player: int, action: int):
@@ -373,24 +395,31 @@ class JGGame(Game):
         opponent_remaining = board.coins_to_add(-player)
         if player_remaining or opponent_remaining:
             # First player plays all their coins first, then the opponent plays all their coins
-            res = board.arr, (
-                player # We have coins remaining to add
-                if player_remaining
-                else -player # We've played all our coins, it's the opponent's turn
+            res = (
+                board.arr,
+                (
+                    player  # We have coins remaining to add
+                    if player_remaining
+                    else -player  # We've played all our coins, it's the opponent's turn
+                ),
             )
             return res
         return board.arr, -player
 
-    def getValidMoves(self, board_arr: np.ndarray[int, int], player: int) -> np.ndarray[bool]:
+    def getValidMoves(
+        self, board_arr: np.ndarray[int, int], player: int
+    ) -> np.ndarray[bool]:
         try:
             return self._getValidMoves(board_arr, player)
         except GameWin as e:
-            #print("Found game win")
+            # print("Found game win")
             res = np.zeros(self.getActionSize(), dtype=bool)
             res[e.action] = True
             return res
 
-    def _getValidMoves(self, board_arr: np.ndarray[int, int], player: int) -> np.ndarray[bool]:
+    def _getValidMoves(
+        self, board_arr: np.ndarray[int, int], player: int
+    ) -> np.ndarray[bool]:
         actions: list[int] = []
         board = Board(board_arr)
 
@@ -400,11 +429,11 @@ class JGGame(Game):
                 # This should hardly ever happen, but it's a hack
                 return
             action = action_pack(skip, src_idx_player, dst_idx, count)
-            #self.getNextState(board_arr, player, action)
+            # self.getNextState(board_arr, player, action)
             if dst_idx == PLAYER_CITY_IDXS[-player]:
                 raise GameWin(action)
             check_board, _ = self.getNextState(board_arr, player, action)
-            #if np.any(check_board < 0):
+            # if np.any(check_board < 0):
             #    breakpoint()
             actions.append(action)
 
@@ -482,7 +511,7 @@ class JGGame(Game):
             #  print("Player 1:", board.coins_to_add(1), board.coins_on_board(1))
             #  print("Player 2:", board.coins_to_add(-1), board.coins_on_board(-1))
             #  board.display()
-            #breakpoint()
+            # breakpoint()
             return 1
 
         if board.coins_at_idx(player=player, idx=PLAYER_CITY_IDXS[player]):
@@ -493,8 +522,8 @@ class JGGame(Game):
 
         if board.coins_at_idx(player=player, idx=PLAYER_CITY_IDXS[-player]):
             # Opponent's city has coins on it
-            #print("Game win: opponent's city has coins on it")
-            #board.display()
+            # print("Game win: opponent's city has coins on it")
+            # board.display()
             return 1
 
         return 0

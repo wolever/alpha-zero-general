@@ -71,7 +71,9 @@ class JGNNet(nn.Module):
         self.bn3 = nn.BatchNorm2d(nn_args.num_channels)
         self.bn4 = nn.BatchNorm2d(nn_args.num_channels)
 
-        self.fc1 = nn.Linear(nn_args.num_channels * self.grid_size * self.grid_size, 2048)
+        self.fc1 = nn.Linear(
+            nn_args.num_channels * self.grid_size * self.grid_size, 2048
+        )
         self.fc_bn1 = nn.BatchNorm1d(2048)
 
         self.fc2 = nn.Linear(2048, 1024)
@@ -101,7 +103,7 @@ class JGNNet(nn.Module):
     def forward(self, s):
         # s: batch_size x 63 (or 63x1)
         batch_size = s.size(0)
-        s = s.view(batch_size, -1) # Ensure flattened
+        s = s.view(batch_size, -1)  # Ensure flattened
 
         # 1. Transform 1D input to 3-channel 9x9 2D input
         # Initialize grid: batch x 3 x 9 x 9
@@ -110,7 +112,7 @@ class JGNNet(nn.Module):
         # Channel 0: Board state
         # We need to scatter the values from s into the grid positions
         # s[:, :61] contains the board cells
-        board_vals = s[:, :61] # batch x 61
+        board_vals = s[:, :61]  # batch x 61
 
         # We use the pre-computed mapping.
         # idx_to_xy is 61x2 (we only need the first 61 entries for the board)
@@ -119,7 +121,7 @@ class JGNNet(nn.Module):
 
         # Get x and y coordinates for the 61 board positions
         # mapping is 63x2, take first 61
-        coords = self.idx_to_xy[:61] # 61 x 2
+        coords = self.idx_to_xy[:61]  # 61 x 2
         xs = coords[:, 0]
         ys = coords[:, 1]
 
@@ -132,7 +134,7 @@ class JGNNet(nn.Module):
         # Let's use a flat view for assignment to be safe and efficient
         # Grid flat size is 81.
         # coords_flat = xs * 9 + ys
-        coords_flat = xs * self.grid_size + ys # 61
+        coords_flat = xs * self.grid_size + ys  # 61
 
         # Create a flat view of the first channel: batch x 81
         x_c0_flat = x[:, 0, :, :].view(batch_size, -1)
@@ -143,7 +145,7 @@ class JGNNet(nn.Module):
         # scatter is best.
         # dim=1, index=coords_flat expanded, src=board_vals
 
-        index = coords_flat.unsqueeze(0).expand(batch_size, -1) # batch x 61
+        index = coords_flat.unsqueeze(0).expand(batch_size, -1)  # batch x 61
         x_c0_flat.scatter_(1, index, board_vals)
 
         # Reshape back (done automatically since it's a view)

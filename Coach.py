@@ -63,90 +63,71 @@ class Coach:
                            the player eventually won the game, else -1.
         """
         trainExamples = []
-        curPlayer = 1
-        canonicalBoard = self.game.getInitBoard()
+        playerAbs = 1
+        boardCanonical = self.game.getInitBoard()
         episodeStep = 0
 
         from JGGame import Board, action_unpack
 
-        verbose = False
-
         while True:
             episodeStep += 1
-            temp = int(episodeStep < self.args.tempThreshold)
+            if episodeStep > self.args.maxTurnsInGame:
+                print("\nSTUCK IN LOOP")
+                print("Player:", playerAbs)
+                Board(self.game.getCanonicalForm(boardCanonical, playerAbs)).display()
+                return []
 
-            pi = self.mcts.getActionProb(canonicalBoard, temp=temp)
-            sym = self.game.getSymmetries(canonicalBoard, pi)
+            temp = int(episodeStep < self.args.tempThreshold)
+            pi = self.mcts.getActionProb(boardCanonical, temp=temp)
+            sym = self.game.getSymmetries(boardCanonical, pi)
             for b, p in sym:
-                trainExamples.append([b, curPlayer, p, None])
+                trainExamples.append([playerAbs, b, p])
 
             action = np.random.choice(len(pi), p=pi)
+            nextBoard, nextPlayer = self.game.getNextState(boardCanonical, 1, action)
 
-            # DW note: this appears to be a bug; it should be using player=1 and the canonical board
-            # board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
-            nextBoard, nextPlayer = self.game.getNextState(canonicalBoard, 1, action)
-            # print("Next player:", nextPlayer)
-            # print("Next board:")
-            # Board(nextBoard).display()
+            winnerCanonical = self.game.getGameEnded(nextBoard, 1)
+            if not winnerCanonical:
+                if nextPlayer != 1:
+                    playerAbs = -playerAbs
+                    boardCanonical = self.game.getCanonicalForm(nextBoard, -1)
+                else:
+                    boardCanonical = nextBoard
+                continue
 
-            if nextPlayer != 1:
-                curPlayer = nextPlayer
-                canonicalBoard = self.game.getCanonicalForm(nextBoard, nextPlayer)
-            else:
-                canonicalBoard = nextBoard
+            result = []
+            winnerAbs = winnerCanonical * playerAbs
+            for trainPlayerAbs, trainBoard, trainPi in trainExamples:
+                # Simple reward scaling - 1 for win, -1 for loss
+                reward = winnerAbs * trainPlayerAbs
+                result.append((trainBoard, trainPi, reward))
 
-            r = self.game.getGameEnded(canonicalBoard, 1)
+                # Complex reward scaling
+                # player_perspective = r * x[1]
+                # is_win = player_perspective > 0
+                # min_turns = 20 if is_win else 7
+                # max_turns = 75 if is_win else 20
+                # min_scale = 0.2
 
-            if r != 0:
-                # Scale reward based on number of turns
+                ## Calculate the reward scaling factor (from 1.0 to min_scale)
+                # if episodeStep <= min_turns:
+                #    scale = 1.0
+                # elif episodeStep >= max_turns:
+                #    scale = min_scale
+                # else:
+                #    scale = 1.0 - (1.0 - min_scale) * (episodeStep - min_turns) / (max_turns - min_turns)
 
-                result = []
-                if verbose:
-                    print("Ending player:", curPlayer)
-                    print("Ending result:", r)
-                    print("Ending board:")
-                    Board(canonicalBoard).display()
+                ## Process each example with the appropriate scaled reward
+                ## Determine if player won or lost
 
-                for x in trainExamples:
-                    # Simple reward scaling - 1 for win, -1 for loss
-                    reward = r * x[1]
+                ## Scale the reward according to the number of turns
+                # reward = player_perspective * scale * (0.75 if is_win else 1)
+                # if verbose:
+                #    print(f"Board reward: {reward}")
+                #    Board(x[0]).display()
+                # result.append((board, pi, reward))
 
-                    # Complex reward scaling
-                    # player_perspective = r * x[1]
-                    # is_win = player_perspective > 0
-                    # min_turns = 20 if is_win else 7
-                    # max_turns = 75 if is_win else 20
-                    # min_scale = 0.2
-
-                    ## Calculate the reward scaling factor (from 1.0 to min_scale)
-                    # if episodeStep <= min_turns:
-                    #    scale = 1.0
-                    # elif episodeStep >= max_turns:
-                    #    scale = min_scale
-                    # else:
-                    #    scale = 1.0 - (1.0 - min_scale) * (episodeStep - min_turns) / (max_turns - min_turns)
-
-                    ## Process each example with the appropriate scaled reward
-                    ## Determine if player won or lost
-
-                    ## Scale the reward according to the number of turns
-                    # reward = player_perspective * scale * (0.75 if is_win else 1)
-                    # if verbose:
-                    #    print(f"Board reward: {reward}")
-                    #    Board(x[0]).display()
-
-                    result.append((x[0], x[2], reward))
-
-                return result
-
-            if episodeStep > self.args.maxTurnsInGame:
-                from JGGame import action_unpack
-
-                print("STUCK IN LOOP")
-                print(curPlayer)
-                Board(self.game.getCanonicalForm(canonicalBoard, curPlayer)).display()
-                print(action, "=", action_unpack(action))
-                return []
+            return result  # list[(board, pi, reward)]
 
     def learn(self):
         """
@@ -195,9 +176,9 @@ class Coach:
             )
             new_examples = []
         else:
-            with self.args.time("self_play") as data:
+            with self.args.time("self-play") as data:
                 new_examples = self.runSelfPlay()
-                data["num_examples"] = len(new_examples)
+                data["self-play/examples"] = len(new_examples)
             log.info(f"Collected {len(new_examples)} examples.")
 
         exdir = os.path.join(self.args.dataDirectory, "examples")

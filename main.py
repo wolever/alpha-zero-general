@@ -97,9 +97,13 @@ class TrainingArgs(BaseModel):
 sys.setrecursionlimit(10_000)
 
 args_fast = TrainingArgs(
-    load_model=False, numEps=10, numItersForTrainExamplesHistory=5, numMCTSSims=100,
+    numEps=20,
+    numItersForTrainExamplesHistory=5,
+    numMCTSSims=100,
     arenaCompare=10,
-    )
+    load_examples=False,
+    load_model=False,
+)
 args_slow = TrainingArgs()
 args = args_fast if os.getenv("FAST") else args_slow
 
