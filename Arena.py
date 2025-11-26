@@ -1,8 +1,6 @@
 import logging
 from typing import TYPE_CHECKING
 
-from tqdm import tqdm
-import wandb
 
 import JGGame
 
@@ -128,18 +126,23 @@ class Arena:
 
         players = [draw, self.player1, self.player2]
         wins = [0, 0, 0]  # [draw, old, new]
+        results_in_position = [
+            [0, 0, 0],  # new is first, [draw, old, new]
+            [0, 0, 0],  # new is second, [draw, old, new]
+        ]
         game_index = 0
 
         # First half: player1 starts.
         for round_num, r in enumerate([1, -1]):
             round_num += 1
             for _ in range(num):
-                with self.args.time("arena_round") as data:
+                with self.args.time("arena/game") as game_data:
                     game_index += 1
                     gameResult, turns, last_player = self.playGame(
                         players[r], players[-r], verbose=verbose
                     )
                     wins[gameResult * r] += 1
+                    results_in_position[-r][gameResult * r] += 1
                     print(
                         f"Round {round_num} game {game_index} result: {players[gameResult * r].name} ({gameResult * r}) wins "
                         f"in {turns} turns; "
@@ -147,17 +150,15 @@ class Arena:
                     )
 
                     # Log each arena game outcome to Weights & Biases, if active.
-                    data.update(
+                    game_data.update(
                         {
-                            "arena/game_index": game_index,
-                            "arena/phase": round_num,
-                            "arena/starting_player": r,
-                            "arena/starting_player_name": players[r].name,
-                            "arena/ending_player": last_player,
-                            "arena/ending_player_name": players[last_player].name,
-                            "arena/game_result": gameResult * r,
-                            "arena/turns": turns,
+                            "arena/game/index": game_index,
+                            "arena/game/phase": round_num,
+                            "arena/game/starting_player": r,
+                            "arena/game/starting_player_name": players[r].name,
+                            "arena/game/game_result": gameResult * r,
+                            "arena/game/turns": turns,
                         }
                     )
 
-        return wins[1], wins[2], wins[0]
+        return wins[1], wins[2], wins[0], results_in_position

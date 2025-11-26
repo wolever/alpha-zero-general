@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import traceback
 from collections import deque
 from pickle import Pickler, Unpickler
@@ -39,7 +38,7 @@ class Coach:
     def __init__(self, game: JGGame, nnet, args):
         self.game = game
         self.nnet = nnet
-        self.pnet = self.nnet.__class__(self.game)  # the competitor network
+        self.pnet = self.nnet.__class__(self.game, args)  # the competitor network
         self.args = args
         self.mcts = MCTS(self.game, self.nnet, self.args)
         self.trainExamplesHistory = []  # history of examples from args.numItersForTrainExamplesHistory latest iterations
@@ -166,33 +165,22 @@ class Coach:
                 try:
                     self.runIteration(i)
                     error_count = 0
-                    if wandb.run is not None:
-                        wandb.log({"iteration": i, "iteration_status": "ok"})
+                    data["iteration/result"] = "ok"
                 except Exception as e:
                     error_count += 1
                     giving_up = error_count > 10
                     data.update(
                         {
-                            "error": str(e),
-                            "traceback": traceback.format_exc(),
-                            "giving_up": giving_up,
-                            "error_count": error_count,
+                            "iteration/result": "error",
+                            "iteration/error": repr(e),
+                            "iteration/traceback": traceback.format_exc(),
+                            "iteration/error_count": error_count,
+                            "iteration/aborted": giving_up,
                         }
                     )
                     log.exception(f"Error in iteration {i}: {e}")
-                    if wandb.run is not None:
-                        wandb.log(
-                            {
-                                "iteration": i,
-                                "iteration_status": "error",
-                                "iteration_error_count": error_count,
-                            }
-                        )
                     if giving_up:
-                        log.error(
-                            f"Giving up on iteration {i} after {error_count} errors"
-                        )
-                        raise e
+                        break
                     log.info("Trying again...")
 
     def runIteration(self, i: int):
@@ -241,54 +229,54 @@ class Coach:
         # Train the new network
         with self.args.time("train") as data:
             self.nnet.train(trainExamples)
-            data["num_examples"] = len(trainExamples)
-            if wandb.run is not None:
-                wandb.log(
-                    {
-                        "train/num_examples": len(trainExamples),
-                        "iteration": i,
-                    }
-                )
+            data["train/examples"] = len(trainExamples)
 
         pmcts = MCTS(self.game, self.pnet, self.args)
         nmcts = MCTS(self.game, self.nnet, self.args)
 
         # Play against the previous network
         log.info("PITTING AGAINST PREVIOUS VERSION")
-        with self.args.time("arena") as data:
+        with self.args.time("arena/result") as data:
             arena = Arena(
                 self.args,
                 lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
                 lambda x: np.argmax(nmcts.getActionProb(x, temp=0)),
                 self.game,
             )
-            pwins, nwins, draws = arena.playGames(self.args.arenaCompare)
+            pwins, nwins, draws, results_in_position = arena.playGames(
+                self.args.arenaCompare
+            )
             is_new_better = (
                 float(nwins) / ((pwins + nwins) or 1) > self.args.updateThreshold
             )
+            total_played = pwins + nwins + draws
             data.update(
                 {
-                    "prev_wins": pwins,
-                    "new_wins": nwins,
-                    "draws": draws,
-                    "is_new_better": is_new_better,
+                    "arena/result/old_wins": pwins,
+                    "arena/result/new_wins": nwins,
+                    "arena/result/draws": draws,
+                    "arena/result/total_games": total_played,
+                    "arena/result/new_win_rate": (
+                        float(nwins) / total_played if total_played else 0.0
+                    ),
+                    "arena/result/is_new_better": float(is_new_better),
+                    "arena/result/first_player_win_rate": (
+                        (results_in_position[0][2] + results_in_position[1][1])
+                        / (
+                            results_in_position[0][1]
+                            + results_in_position[1][2]
+                            + results_in_position[0][0]
+                            + results_in_position[1][0]
+                        )
+                    ),
+                    "arena/result/new_first/draws": results_in_position[0][0],
+                    "arena/result/new_first/old_wins": results_in_position[0][1],
+                    "arena/result/new_first/new_wins": results_in_position[0][2],
+                    "arena/result/new_second/draws": results_in_position[1][0],
+                    "arena/result/new_second/old_wins": results_in_position[1][1],
+                    "arena/result/new_second/new_wins": results_in_position[1][2],
                 }
             )
-            if wandb.run is not None:
-                total_played = pwins + nwins + draws
-                wandb.log(
-                    {
-                        "iteration": i,
-                        "arena/prev_wins": pwins,
-                        "arena/new_wins": nwins,
-                        "arena/draws": draws,
-                        "arena/total_games": total_played,
-                        "arena/new_win_rate": (
-                            float(nwins) / total_played if total_played else 0.0
-                        ),
-                        "arena/is_new_better": float(is_new_better),
-                    }
-                )
 
         log.info("OLD/NEW WINS : %d / %d ; DRAWS : %d" % (pwins, nwins, draws))
         if not is_new_better:
@@ -336,6 +324,9 @@ class Coach:
             log.warning(f'No example files found in "{exdir}".')
             return
 
+        shuffle(files)
+        files = files[: self.args.numItersForTrainExamplesHistory]
+
         log.info(f"Loading trainExamples from {len(files)} files in {exdir}...")
 
         self.trainExamplesHistory = []
@@ -379,9 +370,10 @@ class Coach:
 
 
 def save_examples(examples, filename):
+    if not examples:
+        return
     with open(filename, "wb+") as f:
         Pickler(f).dump(examples)
-    f.closed
 
 
 def load_examples(filename):

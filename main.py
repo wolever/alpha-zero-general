@@ -27,27 +27,27 @@ coloredlogs.install(level="INFO")  # Change this to DEBUG to see more info.
 class TrainingArgs(BaseModel):
     runId: str = datetime.now().strftime("%Y%m%d%H%M%S")
     numIters: int = 1000
-    numEps: int = 20  # Number of self-play games per iteration
+    numEps: int = 10  # Number of self-play games per iteration
     tempThreshold: int = 7  # The first N moves are random, then the rest are greedy
     updateThreshold: float = 0.6  # During arena playoff, new neural net will be accepted if threshold or more of games are won.
     numMCTSSims: int = 50  # Number of games moves for MCTS to simulate.
     MCTSDepth: int = 9  # Depth of the MCTS tree.
-    arenaCompare: int = 24  # Number of games to play during arena play to determine if new net will be accepted.
+    arenaCompare: int = 16  # Number of games to play during arena play to determine if new net will be accepted.
     cpuct: int = 1  # Exploration constant
     dataDirectory: str = (
         f"./checkpoints-{Game.__name__}-v0"  # Directory to save the checkpoints
     )
-    load_model: bool = False  # Whether to load the model from the checkpoint
-    load_examples: bool = False  # Whether to load the examples from the checkpoint
+    load_model: bool = True  # Whether to load the model from the checkpoint
+    load_examples: bool = True  # Whether to load the examples from the checkpoint
     load_folder_file: str = "best.pth.tar"  # Name of the checkpoint file
 
     maxTurnsInGame: int = (
-        75  # Maximum number of turns in a game before it's considered a draw.
+        50  # Maximum number of turns in a game before it's considered a draw.
     )
 
-    maxlenOfQueue: int = 10_000  # Number of game examples to train the neural networks.
+    maxlenOfQueue: int = 2_000  # Number of game examples to train the neural networks.
     numItersForTrainExamplesHistory: int = (
-        10  # Number of iterations to store the train examples
+        5  # Number of iterations to store the train examples
     )
 
     _outf: io.TextIOWrapper = PrivateAttr(default=None)
@@ -71,7 +71,11 @@ class TrainingArgs(BaseModel):
         data = {}
         self._timeDataStack.append(data)
         yield data
-        self._timeDataStack.remove(data)
+        try:
+            self._timeDataStack.remove(data)
+        except Exception as e:
+            print("ERROR:", e)
+            breakpoint()
 
         res_data = {}
         for d in self._timeDataStack:
@@ -126,7 +130,7 @@ def main():
     g = Game()
 
     log.info("Loading %s...", nn.__name__)
-    nnet = nn(g)
+    nnet = nn(g, args)
 
     if args.load_model:
         log.info(
@@ -150,8 +154,7 @@ def main():
         c.learn()
     finally:
         args.close()
-        if wandb.run is not None:
-            wandb.finish()
+        wandb.finish()
 
 
 if __name__ == "__main__":
