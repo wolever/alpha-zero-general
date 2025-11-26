@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import traceback
 from collections import deque
 from pickle import Pickler, Unpickler
 from random import shuffle
@@ -153,15 +154,35 @@ class Coach:
         only if it wins >= updateThreshold fraction of games.
         """
 
+        error_count = 0
+
         for i in range(1, self.args.numIters + 1):
             with self.args.time("iteration") as data:
                 data["iteration"] = i
-                self.runIteration(i)
+                try:
+                    self.runIteration(i)
+                    error_count = 0
+                except Exception as e:
+                    error_count += 1
+                    giving_up = error_count > 3
+                    data.update(
+                        {
+                            "error": str(e),
+                            "traceback": traceback.format_exc(),
+                            "giving_up": giving_up,
+                            "error_count": error_count,
+                        }
+                    )
+                    log.error(f"Error in iteration {i}: {e}")
+                    if giving_up:
+                        log.error(
+                            f"Giving up on iteration {i} after {error_count} errors"
+                        )
+                        raise e
+                    log.info("Trying again...")
 
     def runIteration(self, i: int):
         log.info(f"Starting Iter #{i} ...")
-        # examples of the iteration
-        iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
 
         with self.args.time("self_play") as data:
             new_examples = self.runSelfPlay()
@@ -177,10 +198,7 @@ class Coach:
             {"iteration": i, "num_examples": len(new_examples), "file": ex_file},
         )
 
-        iterationTrainExamples += new_examples
-
-        # save the iteration examples to the history
-        self.trainExamplesHistory.append(iterationTrainExamples)
+        self.trainExamplesHistory.append(new_examples)
 
         while (
             len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory
