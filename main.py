@@ -35,7 +35,7 @@ class TrainingArgs(BaseModel):
     arenaCompare: int = 16  # Number of games to play during arena play to determine if new net will be accepted.
     cpuct: int = 1  # Exploration constant
     dataDirectory: str = (
-        f"./checkpoints-{Game.__name__}-v0"  # Directory to save the checkpoints
+        f"./checkpoints-{Game.__name__}-v1"  # Directory to save the checkpoints
     )
     load_model: bool = True  # Whether to load the model from the checkpoint
     load_examples: bool = True  # Whether to load the examples from the checkpoint

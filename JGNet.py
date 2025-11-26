@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,6 +16,8 @@ from utils import dotdict, AverageMeter
 
 if TYPE_CHECKING:
     from main import TrainingArgs
+
+log = logging.getLogger(__name__)
 
 
 nn_args = dotdict(
@@ -290,7 +293,8 @@ class NNetWrapper(NeuralNet):
     def load_checkpoint(self, filename):
         # https://github.com/pytorch/examples/blob/master/imagenet/main.py#L98
         if not os.path.exists(filename):
-            raise ValueError("No model in path {}".format(filename))
+            log.warning(f"Previous model not found: {filename}")
+            return
         map_location = nn_args.device
         checkpoint = torch.load(filename, map_location=map_location)
         self.nnet.load_state_dict(checkpoint["state_dict"])
