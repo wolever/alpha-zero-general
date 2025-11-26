@@ -1,10 +1,14 @@
 import logging
+from typing import TYPE_CHECKING
 
 from tqdm import tqdm
 
 import JGGame
 
 log = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from main import TrainingArgs
 
 
 class Arena():
@@ -13,8 +17,9 @@ class Arena():
     """
 
     game: JGGame.JGGame
+    args: "TrainingArgs"
 
-    def __init__(self, player1, player2, game, display=None):
+    def __init__(self, args, player1, player2, game, display=None):
         """
         Input:
             player 1,2: two functions that takes board as input, return action
@@ -26,6 +31,7 @@ class Arena():
         see othello/OthelloPlayers.py for an example. See pit.py for pitting
         human players/other baselines with each other.
         """
+        self.args = args
         self.player1 = player1
         self.player2 = player2
         self.game = game
@@ -86,7 +92,7 @@ class Arena():
             else:
                 board = newBoard
 
-            if it > JGGame.MAX_TURNS:
+            if it > self.args.maxTurnsInGame:
                 print("STUCK IN LOOP")
                 print(curPlayer)
                 print(board)

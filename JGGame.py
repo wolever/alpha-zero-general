@@ -4,7 +4,6 @@ from Game import Game
 from colorist import Color
 
 BOARD_SIZE = 5
-MAX_TURNS = 75
 
 def generate_board(side_length: int = BOARD_SIZE, mirror: bool = False, flip: bool = False):
   """ Generates a hex board with side_length tiles on each side,
