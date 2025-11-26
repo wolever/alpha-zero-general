@@ -236,7 +236,7 @@ class Coach:
 
         # Play against the previous network
         log.info("PITTING AGAINST PREVIOUS VERSION")
-        with self.args.time("arena/result") as data:
+        with self.args.time("arena-result") as data:
             arena = Arena(
                 self.args,
                 lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
@@ -252,15 +252,15 @@ class Coach:
             total_played = pwins + nwins + draws
             data.update(
                 {
-                    "arena/result/old_wins": pwins,
-                    "arena/result/new_wins": nwins,
-                    "arena/result/draws": draws,
-                    "arena/result/total_games": total_played,
-                    "arena/result/new_win_rate": (
+                    "arena-result/old_wins": pwins,
+                    "arena-result/new_wins": nwins,
+                    "arena-result/draws": draws,
+                    "arena-result/total_games": total_played,
+                    "arena-result/new_win_rate": (
                         float(nwins) / total_played if total_played else 0.0
                     ),
-                    "arena/result/is_new_better": float(is_new_better),
-                    "arena/result/first_player_win_rate": (
+                    "arena-result/is_new_better": float(is_new_better),
+                    "arena-result/first_player_win_rate": (
                         (results_in_position[0][2] + results_in_position[1][1])
                         / (
                             results_in_position[0][1]
@@ -269,12 +269,12 @@ class Coach:
                             + results_in_position[1][0]
                         )
                     ),
-                    "arena/result/new_first/draws": results_in_position[0][0],
-                    "arena/result/new_first/old_wins": results_in_position[0][1],
-                    "arena/result/new_first/new_wins": results_in_position[0][2],
-                    "arena/result/new_second/draws": results_in_position[1][0],
-                    "arena/result/new_second/old_wins": results_in_position[1][1],
-                    "arena/result/new_second/new_wins": results_in_position[1][2],
+                    "arena-result/new_first/draws": results_in_position[0][0],
+                    "arena-result/new_first/old_wins": results_in_position[0][1],
+                    "arena-result/new_first/new_wins": results_in_position[0][2],
+                    "arena-result/new_second/draws": results_in_position[1][0],
+                    "arena-result/new_second/old_wins": results_in_position[1][1],
+                    "arena-result/new_second/new_wins": results_in_position[1][2],
                 }
             )
 

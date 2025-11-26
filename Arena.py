@@ -136,7 +136,7 @@ class Arena:
         for round_num, r in enumerate([1, -1]):
             round_num += 1
             for _ in range(num):
-                with self.args.time("arena/game") as game_data:
+                with self.args.time("arena-game") as game_data:
                     game_index += 1
                     gameResult, turns, last_player = self.playGame(
                         players[r], players[-r], verbose=verbose
@@ -152,12 +152,12 @@ class Arena:
                     # Log each arena game outcome to Weights & Biases, if active.
                     game_data.update(
                         {
-                            "arena/game/index": game_index,
-                            "arena/game/phase": round_num,
-                            "arena/game/starting_player": r,
-                            "arena/game/starting_player_name": players[r].name,
-                            "arena/game/game_result": gameResult * r,
-                            "arena/game/turns": turns,
+                            "arena-game/index": game_index,
+                            "arena-game/phase": round_num,
+                            "arena-game/starting_player": r,
+                            "arena-game/starting_player_name": players[r].name,
+                            "arena-game/game_result": gameResult * r,
+                            "arena-game/turns": turns,
                         }
                     )
 
