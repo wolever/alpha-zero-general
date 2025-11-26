@@ -1,22 +1,27 @@
-from collections import deque
 import logging
 import math
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from JGGame import JGGame
+
+
+if TYPE_CHECKING:
+    from main import TrainingArgs
 
 EPS = 1e-8
 
 log = logging.getLogger(__name__)
 
 
-class MCTS():
+class MCTS:
     """
     This class handles the MCTS tree.
     """
 
     game: JGGame
+    args: "TrainingArgs"
 
     def __init__(self, game, nnet, args):
         self.game = game
@@ -43,7 +48,10 @@ class MCTS():
             self.search(canonicalBoard)
 
         s = self.game.stringRepresentation(canonicalBoard)
-        counts = [self.Nsa[(s, a)] if (s, a) in self.Nsa else 0 for a in range(self.game.getActionSize())]
+        counts = [
+            self.Nsa[(s, a)] if (s, a) in self.Nsa else 0
+            for a in range(self.game.getActionSize())
+        ]
 
         if temp == 0:
             bestAs = np.array(np.argwhere(counts == np.max(counts))).flatten()
@@ -52,7 +60,7 @@ class MCTS():
             probs[bestA] = 1
             return probs
 
-        counts = [x ** (1. / temp) for x in counts]
+        counts = [x ** (1.0 / temp) for x in counts]
         counts_sum = float(sum(counts))
         probs = [x / counts_sum for x in counts]
         return probs
@@ -103,26 +111,43 @@ class MCTS():
                 # NB! All valid moves may be masked if either your NNet architecture is insufficient or you've get overfitting or something else.
                 # If you have got dozens or hundreds of these messages you should pay attention to your NNet and/or training process.
                 from JGGame import Board
+
                 Board(canonicalBoard).display()
                 log.error("All valid moves were masked, doing a workaround.")
                 self.Ps[s] = self.Ps[s] + valids
                 self.Ps[s] /= np.sum(self.Ps[s])
+
+            if depth == 0 and self.args.dirichletEpsilon > 0:
+                # Add Dirichlet noise to the root node to encourage exploration
+                valids_idxs = np.where(valids)[0]
+                noise = np.random.dirichlet(
+                    [self.args.dirichletAlpha] * len(valids_idxs)
+                )
+
+                # Mix noise with the prior probabilities
+                # self.Ps[s] is already masked and normalized to valid moves
+                self.Ps[s][valids_idxs] = (1 - self.args.dirichletEpsilon) * self.Ps[s][
+                    valids_idxs
+                ] + self.args.dirichletEpsilon * noise
 
             self.Vs[s] = valids
             self.Ns[s] = 0
             return -v
 
         valids = self.Vs[s]
-        cur_best = -float('inf')
+        cur_best = -float("inf")
         best_act = -1
 
         # pick the action with the highest upper confidence bound
         for a in np.where(valids)[0]:
             if (s, a) in self.Qsa:
-                u = self.Qsa[(s, a)] + self.args.cpuct * self.Ps[s][a] * math.sqrt(self.Ns[s]) / (
-                        1 + self.Nsa[(s, a)])
+                u = self.Qsa[(s, a)] + self.args.cpuct * self.Ps[s][a] * math.sqrt(
+                    self.Ns[s]
+                ) / (1 + self.Nsa[(s, a)])
             else:
-                u = self.args.cpuct * self.Ps[s][a] * math.sqrt(self.Ns[s] + EPS)  # Q = 0 ?
+                u = (
+                    self.args.cpuct * self.Ps[s][a] * math.sqrt(self.Ns[s] + EPS)
+                )  # Q = 0 ?
 
             if u > cur_best:
                 cur_best = u
@@ -135,7 +160,9 @@ class MCTS():
         v = self.search(next_s, depth + 1)
 
         if (s, a) in self.Qsa:
-            self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (self.Nsa[(s, a)] + 1)
+            self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (
+                self.Nsa[(s, a)] + 1
+            )
             self.Nsa[(s, a)] += 1
 
         else:
