@@ -164,7 +164,7 @@ class Coach:
                     error_count = 0
                 except Exception as e:
                     error_count += 1
-                    giving_up = error_count > 3
+                    giving_up = error_count > 10
                     data.update(
                         {
                             "error": str(e),

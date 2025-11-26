@@ -24,13 +24,13 @@ coloredlogs.install(level="INFO")  # Change this to DEBUG to see more info.
 
 class TrainingArgs(BaseModel):
     runId: str = datetime.now().strftime("%Y%m%d%H%M%S")
-    numIters: int = 100
-    numEps: int = 10  # Number of self-play games per iteration
-    tempThreshold: int = 15  # The first N moves are random, then the rest are greedy
+    numIters: int = 1000
+    numEps: int = 200  # Number of self-play games per iteration
+    tempThreshold: int = 7  # The first N moves are random, then the rest are greedy
     updateThreshold: float = 0.6  # During arena playoff, new neural net will be accepted if threshold or more of games are won.
-    numMCTSSims: int = 100  # Number of games moves for MCTS to simulate.
-    MCTSDepth: int = 10  # Depth of the MCTS tree.
-    arenaCompare: int = 4  # Number of games to play during arena play to determine if new net will be accepted.
+    numMCTSSims: int = 50  # Number of games moves for MCTS to simulate.
+    MCTSDepth: int = 9  # Depth of the MCTS tree.
+    arenaCompare: int = 24  # Number of games to play during arena play to determine if new net will be accepted.
     cpuct: int = 1  # Exploration constant
     dataDirectory: str = (
         f"./checkpoints-{Game.__name__}-v0"  # Directory to save the checkpoints
@@ -42,9 +42,9 @@ class TrainingArgs(BaseModel):
         75  # Maximum number of turns in a game before it's considered a draw.
     )
 
-    maxlenOfQueue: int = 50_000  # Number of game examples to train the neural networks.
+    maxlenOfQueue: int = 10_000  # Number of game examples to train the neural networks.
     numItersForTrainExamplesHistory: int = (
-        20  # Number of iterations to store the train examples
+        10  # Number of iterations to store the train examples
     )
 
     _outf: io.TextIOWrapper = PrivateAttr(default=None)
