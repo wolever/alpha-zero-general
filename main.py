@@ -27,10 +27,10 @@ coloredlogs.install(level="INFO")  # Change this to DEBUG to see more info.
 class TrainingArgs(BaseModel):
     runId: str = datetime.now().strftime("%Y%m%d%H%M%S")
     numIters: int = 1000
-    numEps: int = 10  # Number of self-play games per iteration
+    numEps: int = 100  # Number of self-play games per iteration
     tempThreshold: int = 7  # The first N moves are random, then the rest are greedy
     updateThreshold: float = 0.6  # During arena playoff, new neural net will be accepted if threshold or more of games are won.
-    numMCTSSims: int = 50  # Number of games moves for MCTS to simulate.
+    numMCTSSims: int = 200  # Number of games moves for MCTS to simulate.
     MCTSDepth: int = 9  # Depth of the MCTS tree.
     arenaCompare: int = 16  # Number of games to play during arena play to determine if new net will be accepted.
     cpuct: int = 1  # Exploration constant
@@ -45,9 +45,9 @@ class TrainingArgs(BaseModel):
         50  # Maximum number of turns in a game before it's considered a draw.
     )
 
-    maxlenOfQueue: int = 2_000  # Number of game examples to train the neural networks.
+    maxlenOfQueue: int = 5_000  # Number of game examples to train the neural networks.
     numItersForTrainExamplesHistory: int = (
-        5  # Number of iterations to store the train examples
+        25  # Number of iterations to store the train examples
     )
 
     _outf: io.TextIOWrapper = PrivateAttr(default=None)
@@ -96,7 +96,12 @@ class TrainingArgs(BaseModel):
 
 sys.setrecursionlimit(10_000)
 
-args = TrainingArgs()
+args_fast = TrainingArgs(
+    load_model=False, numEps=10, numItersForTrainExamplesHistory=5, numMCTSSims=100,
+    arenaCompare=10,
+    )
+args_slow = TrainingArgs()
+args = args_fast if os.getenv("FAST") else args_slow
 
 # Configure logging so that all messages are also written to a run-specific log file.
 log_dir = os.path.join(args.dataDirectory, "logs")
