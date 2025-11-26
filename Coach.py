@@ -96,33 +96,35 @@ class Coach():
                     Board(canonicalBoard).display()
 
                 for x in trainExamples:
-                    player_perspective = r * x[1]
-                    is_win = player_perspective > 0
-                    min_turns = 20 if is_win else 7
-                    max_turns = 75 if is_win else 20
-                    min_scale = 0.2
+                    # Simple reward scaling - 1 for win, -1 for loss
+                    reward = r * x[1]
 
-                    # Calculate the reward scaling factor (from 1.0 to min_scale)
-                    if episodeStep <= min_turns:
-                        scale = 1.0
-                    elif episodeStep >= max_turns:
-                        scale = min_scale
-                    else:
-                        scale = 1.0 - (1.0 - min_scale) * (episodeStep - min_turns) / (max_turns - min_turns)
+                    # Complex reward scaling
+                    #player_perspective = r * x[1]
+                    #is_win = player_perspective > 0
+                    #min_turns = 20 if is_win else 7
+                    #max_turns = 75 if is_win else 20
+                    #min_scale = 0.2
 
-                    # Process each example with the appropriate scaled reward
-                    # Determine if player won or lost
+                    ## Calculate the reward scaling factor (from 1.0 to min_scale)
+                    #if episodeStep <= min_turns:
+                    #    scale = 1.0
+                    #elif episodeStep >= max_turns:
+                    #    scale = min_scale
+                    #else:
+                    #    scale = 1.0 - (1.0 - min_scale) * (episodeStep - min_turns) / (max_turns - min_turns)
 
-                    # Scale the reward according to the number of turns
-                    scaled_reward = player_perspective * scale * (0.75 if is_win else 1)
-                    if verbose:
-                        print(f"Board reward: {scaled_reward}")
-                        Board(x[0]).display()
+                    ## Process each example with the appropriate scaled reward
+                    ## Determine if player won or lost
 
-                    result.append((x[0], x[2], scaled_reward))
+                    ## Scale the reward according to the number of turns
+                    #reward = player_perspective * scale * (0.75 if is_win else 1)
+                    #if verbose:
+                    #    print(f"Board reward: {reward}")
+                    #    Board(x[0]).display()
 
-                #print("Done!")
-                #breakpoint()
+                    result.append((x[0], x[2], reward))
+
                 return result
 
             if episodeStep > MAX_TURNS:
@@ -150,9 +152,9 @@ class Coach():
             # examples of the iteration
             iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
 
-            for _ in tqdm(range(self.args.numEps), desc="Self Play"):
-                self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
-                iterationTrainExamples += self.executeEpisode()
+            iterationTrainExamples += self.runSelfPlay()
+
+
 
             # save the iteration examples to the history
             self.trainExamplesHistory.append(iterationTrainExamples)
@@ -222,3 +224,10 @@ class Coach():
             with open(examplesFile, "rb") as f:
                 self.trainExamplesHistory = Unpickler(f).load()
             log.info('Loading done!')
+
+    def runSelfPlay(self):
+        iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
+        for _ in tqdm(range(self.args.numEps), desc="Self Play"):
+            self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
+            iterationTrainExamples += self.executeEpisode()
+        return iterationTrainExamples

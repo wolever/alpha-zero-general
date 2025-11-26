@@ -64,8 +64,10 @@ class Arena():
 
             if valids[action] == 0:
                 log.error(f'Action {action} is not valid!')
-                log.debug(f'valids = {valids}')
-                assert valids[action] > 0
+                log.info(f'valids = {valids}')
+                log.info(f'board = {board}')
+                self.game.display(self.game.getCanonicalForm(board, curPlayer))
+                break
 
             # Notifying the opponent for the move
             opponent = players[-curPlayer + 1]
