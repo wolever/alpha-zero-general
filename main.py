@@ -86,8 +86,7 @@ class TrainingArgs(BaseModel):
         self.write_log(step, payload)
 
         # Also log timings and associated metadata to Weights & Biases if a run is active.
-        if wandb.run is not None:
-            wandb.log({f"time/{step}": duration, **payload})
+        wandb.run and wandb.log({f"time/{step}": duration, **payload})
 
     def close(self):
         outf = getattr(self, "_outf", None)
@@ -120,7 +119,7 @@ def main():
     log.info("Starting run %s...", args.runId)
 
     # Initialize Weights & Biases run for this training session.
-    wandb.init(
+    os.getenv("NOWANDB") or wandb.init(
         entity="wolever",
         project="alpha-zero-jg",
         name=args.runId,
@@ -150,7 +149,7 @@ def main():
     log.info("Starting the learning process 🎉")
     try:
         args.write_log("starting", args.model_dump())
-        wandb.log({"event": "training_start"})
+        wandb.run and wandb.log({"event": "training_start"})
         c.learn()
     finally:
         args.close()
