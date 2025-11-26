@@ -77,7 +77,8 @@ class Coach:
                 Board(self.game.getCanonicalForm(boardCanonical, playerAbs)).display()
                 return []
 
-            temp = int(episodeStep < self.args.tempThreshold)
+            # Temperature decay: starts at 1.0, decays linearly to 0.01 over tempThreshold turns
+            temp = max(0.01, 1.0 - (episodeStep / self.args.tempThreshold))
             pi = self.mcts.getActionProb(boardCanonical, temp=temp)
             sym = self.game.getSymmetries(boardCanonical, pi)
             for b, p in sym:

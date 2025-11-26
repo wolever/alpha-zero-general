@@ -28,12 +28,14 @@ class TrainingArgs(BaseModel):
     runId: str = datetime.now().strftime("%Y%m%d%H%M%S")
     numIters: int = 1000
     numEps: int = 100  # Number of self-play games per iteration
-    tempThreshold: int = 7  # The first N moves are random, then the rest are greedy
+    tempThreshold: int = (
+        20  # Gradually reduce stochasticity in MCTS over this many turns
+    )
     updateThreshold: float = 0.6  # During arena playoff, new neural net will be accepted if threshold or more of games are won.
     numMCTSSims: int = 200  # Number of games moves for MCTS to simulate.
     MCTSDepth: int = 9  # Depth of the MCTS tree.
     arenaCompare: int = 16  # Number of games to play during arena play to determine if new net will be accepted.
-    cpuct: int = 1  # Exploration constant
+    cpuct: int = 3  # Exploration constant
     dirichletAlpha: float = 0.3  # Alpha for Dirichlet noise (exploration)
     dirichletEpsilon: float = 0.25  # Weight of Dirichlet noise (exploration)
     dataDirectory: str = (
@@ -103,7 +105,7 @@ args_fast = TrainingArgs(
     numItersForTrainExamplesHistory=5,
     numMCTSSims=100,
     arenaCompare=10,
-    load_examples=False,
+    load_examples=True,
     load_model=False,
 )
 args_slow = TrainingArgs()
