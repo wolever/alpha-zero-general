@@ -36,6 +36,7 @@ class TrainingArgs(BaseModel):
         f"./checkpoints-{Game.__name__}-v0"  # Directory to save the checkpoints
     )
     load_model: bool = False  # Whether to load the model from the checkpoint
+    load_examples: bool = True  # Whether to load the examples from the checkpoint
     load_folder_file: str = "best.pth.tar"  # Name of the checkpoint file
 
     maxTurnsInGame: int = (
@@ -86,6 +87,22 @@ sys.setrecursionlimit(10_000)
 
 args = TrainingArgs()
 
+# Configure logging so that all messages are also written to a run-specific log file.
+log_dir = os.path.join(args.dataDirectory, "logs")
+os.makedirs(log_dir, exist_ok=True)
+file_log_path = os.path.join(log_dir, f"{args.runId}.txt")
+
+# Open the log file with UTF-8 encoding so Unicode (e.g., emoji) is handled correctly.
+file_handler = logging.FileHandler(file_log_path, encoding="utf-8")
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+file_handler.setFormatter(file_formatter)
+
+root_logger = logging.getLogger()
+root_logger.addHandler(file_handler)
+
 
 def main():
     log.info("Starting run %s...", args.runId)
@@ -106,7 +123,7 @@ def main():
     log.info("Loading the Coach...")
     c = Coach(g, nnet, args)
 
-    if args.load_model:
+    if args.load_examples:
         log.info("Loading 'trainExamples' from file...")
         c.loadTrainExamples()
 

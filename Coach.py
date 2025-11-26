@@ -42,6 +42,9 @@ class Coach:
         self.args = args
         self.mcts = MCTS(self.game, self.nnet, self.args)
         self.trainExamplesHistory = []  # history of examples from args.numItersForTrainExamplesHistory latest iterations
+        # If we successfully load past examples, we'll skip the first self-play
+        # round in learn() and immediately start training from them.
+        self.skip_first_self_play = False
 
     def executeEpisode(self):
         """
@@ -184,10 +187,19 @@ class Coach:
     def runIteration(self, i: int):
         log.info(f"Starting Iter #{i} ...")
 
-        with self.args.time("self_play") as data:
-            new_examples = self.runSelfPlay()
-            data["num_examples"] = len(new_examples)
-        log.info(f"Collected {len(new_examples)} examples.")
+        # Optionally skip the first self-play iteration if we already have
+        # examples loaded from disk.
+        skip_self_play = self.skip_first_self_play and i == 1
+        if skip_self_play:
+            log.info(
+                "Skipping self-play for first iteration because past examples were loaded."
+            )
+            new_examples = []
+        else:
+            with self.args.time("self_play") as data:
+                new_examples = self.runSelfPlay()
+                data["num_examples"] = len(new_examples)
+            log.info(f"Collected {len(new_examples)} examples.")
 
         exdir = os.path.join(self.args.dataDirectory, "examples")
         os.makedirs(exdir, exist_ok=True)
@@ -198,7 +210,8 @@ class Coach:
             {"iteration": i, "num_examples": len(new_examples), "file": ex_file},
         )
 
-        self.trainExamplesHistory.append(new_examples)
+        if new_examples:
+            self.trainExamplesHistory.append(new_examples)
 
         while (
             len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory
@@ -266,18 +279,59 @@ class Coach:
         save_examples(self.trainExamplesHistory, filename)
 
     def loadTrainExamples(self):
-        modelFile = os.path.join(self.args.dataDirectory, self.args.load_folder_file)
-        examplesFile = modelFile + ".examples"
-        if not os.path.isfile(examplesFile):
-            log.warning(f'File "{examplesFile}" with trainExamples not found!')
-            r = input("Continue? [y|n]")
-            if r != "y":
-                sys.exit()
-        else:
-            log.info("File with trainExamples found. Loading it...")
-            with open(examplesFile, "rb") as f:
-                self.trainExamplesHistory = Unpickler(f).load()
-            log.info("Loading done!")
+        """
+        Load all previously saved training examples from the examples/
+        directory under args.dataDirectory. This replaces the old behavior
+        of loading from a single checkpoint-specific .examples file.
+
+        If one or more example files are successfully loaded, we mark
+        skip_first_self_play so that the first self-play round is skipped
+        and training starts directly from the loaded data.
+        """
+
+        exdir = os.path.join(self.args.dataDirectory, "examples")
+        if not os.path.isdir(exdir):
+            log.warning(f'Directory "{exdir}" with trainExamples not found!')
+            return
+
+        files = sorted(
+            f for f in os.listdir(exdir) if f.endswith(".pkl") and os.path.isfile(os.path.join(exdir, f))
+        )
+        if not files:
+            log.warning(f'No example files found in "{exdir}".')
+            return
+
+        log.info(f"Loading trainExamples from {len(files)} files in {exdir}...")
+
+        self.trainExamplesHistory = []
+        total_examples = 0
+
+        for fname in files:
+            path = os.path.join(exdir, fname)
+            try:
+                examples = load_examples(path)
+            except Exception as e:
+                log.error(f"Failed to load examples from {path}: {e}")
+                continue
+
+            self.trainExamplesHistory.append(examples)
+            try:
+                num = len(examples)
+            except TypeError:
+                num = 0
+            total_examples += num
+            log.info(f"Loaded {num} examples from {fname}")
+
+        if not self.trainExamplesHistory:
+            log.warning(f"Finished loading examples from {exdir}, but none were usable.")
+            return
+
+        self.skip_first_self_play = True
+        log.info(
+            f"Finished loading trainExamples. "
+            f"Total files: {len(self.trainExamplesHistory)}, total examples: {total_examples}. "
+            "First self-play iteration will be skipped."
+        )
 
     def runSelfPlay(self):
         iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
