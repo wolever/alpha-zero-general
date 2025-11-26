@@ -1,31 +1,39 @@
 import logging
 import os
 import sys
+import traceback
 from collections import deque
 from pickle import Pickler, Unpickler
 from random import shuffle
+from typing import TYPE_CHECKING
 
 import numpy as np
 from tqdm import tqdm
 
 from Arena import Arena
-from JGGame import MAX_TURNS, JGGame
+from JGGame import JGGame
 from MCTS import MCTS
 
+if TYPE_CHECKING:
+    from main import TrainingArgs
+
 log = logging.getLogger(__name__)
+
 
 def relink(src: str, dst: str):
     if os.path.exists(dst):
         os.unlink(dst)
     os.link(src, dst)
 
-class Coach():
+
+class Coach:
     """
     This class executes the self-play + learning. It uses the functions defined
     in Game and NeuralNet. args are specified in main.py.
     """
 
     game: JGGame
+    args: "TrainingArgs"
 
     def __init__(self, game: JGGame, nnet, args):
         self.game = game
@@ -57,6 +65,7 @@ class Coach():
         episodeStep = 0
 
         from JGGame import Board, action_unpack
+
         verbose = False
 
         while True:
@@ -71,11 +80,11 @@ class Coach():
             action = np.random.choice(len(pi), p=pi)
 
             # DW note: this appears to be a bug; it should be using player=1 and the canonical board
-            #board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
+            # board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
             nextBoard, nextPlayer = self.game.getNextState(canonicalBoard, 1, action)
-            #print("Next player:", nextPlayer)
-            #print("Next board:")
-            #Board(nextBoard).display()
+            # print("Next player:", nextPlayer)
+            # print("Next board:")
+            # Board(nextBoard).display()
 
             if nextPlayer != 1:
                 curPlayer = nextPlayer
@@ -96,41 +105,44 @@ class Coach():
                     Board(canonicalBoard).display()
 
                 for x in trainExamples:
-                    player_perspective = r * x[1]
-                    is_win = player_perspective > 0
-                    min_turns = 20 if is_win else 7
-                    max_turns = 75 if is_win else 20
-                    min_scale = 0.2
+                    # Simple reward scaling - 1 for win, -1 for loss
+                    reward = r * x[1]
 
-                    # Calculate the reward scaling factor (from 1.0 to min_scale)
-                    if episodeStep <= min_turns:
-                        scale = 1.0
-                    elif episodeStep >= max_turns:
-                        scale = min_scale
-                    else:
-                        scale = 1.0 - (1.0 - min_scale) * (episodeStep - min_turns) / (max_turns - min_turns)
+                    # Complex reward scaling
+                    # player_perspective = r * x[1]
+                    # is_win = player_perspective > 0
+                    # min_turns = 20 if is_win else 7
+                    # max_turns = 75 if is_win else 20
+                    # min_scale = 0.2
 
-                    # Process each example with the appropriate scaled reward
-                    # Determine if player won or lost
+                    ## Calculate the reward scaling factor (from 1.0 to min_scale)
+                    # if episodeStep <= min_turns:
+                    #    scale = 1.0
+                    # elif episodeStep >= max_turns:
+                    #    scale = min_scale
+                    # else:
+                    #    scale = 1.0 - (1.0 - min_scale) * (episodeStep - min_turns) / (max_turns - min_turns)
 
-                    # Scale the reward according to the number of turns
-                    scaled_reward = player_perspective * scale * (0.75 if is_win else 1)
-                    if verbose:
-                        print(f"Board reward: {scaled_reward}")
-                        Board(x[0]).display()
+                    ## Process each example with the appropriate scaled reward
+                    ## Determine if player won or lost
 
-                    result.append((x[0], x[2], scaled_reward))
+                    ## Scale the reward according to the number of turns
+                    # reward = player_perspective * scale * (0.75 if is_win else 1)
+                    # if verbose:
+                    #    print(f"Board reward: {reward}")
+                    #    Board(x[0]).display()
 
-                #print("Done!")
-                #breakpoint()
+                    result.append((x[0], x[2], reward))
+
                 return result
 
-            if episodeStep > MAX_TURNS:
+            if episodeStep > self.args.maxTurnsInGame:
                 from JGGame import action_unpack
+
                 print("STUCK IN LOOP")
                 print(curPlayer)
                 Board(self.game.getCanonicalForm(canonicalBoard, curPlayer)).display()
-                print(action, '=', action_unpack(action))
+                print(action, "=", action_unpack(action))
                 return []
 
     def learn(self):
@@ -142,75 +154,119 @@ class Coach():
         only if it wins >= updateThreshold fraction of games.
         """
 
+        error_count = 0
+
         for i in range(1, self.args.numIters + 1):
-            # bookkeeping
-            log.info(f'Starting Iter #{i} ...')
-            temp_checkpoint = os.path.join(self.args.checkpoint, 'temp.pth.tar')
-            self.nnet.save_checkpoint(temp_checkpoint)
-            # examples of the iteration
-            iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
+            with self.args.time("iteration") as data:
+                data["iteration"] = i
+                try:
+                    self.runIteration(i)
+                    error_count = 0
+                except Exception as e:
+                    error_count += 1
+                    giving_up = error_count > 3
+                    data.update(
+                        {
+                            "error": str(e),
+                            "traceback": traceback.format_exc(),
+                            "giving_up": giving_up,
+                            "error_count": error_count,
+                        }
+                    )
+                    log.error(f"Error in iteration {i}: {e}")
+                    if giving_up:
+                        log.error(
+                            f"Giving up on iteration {i} after {error_count} errors"
+                        )
+                        raise e
+                    log.info("Trying again...")
 
-            for _ in tqdm(range(self.args.numEps), desc="Self Play"):
-                self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
-                iterationTrainExamples += self.executeEpisode()
+    def runIteration(self, i: int):
+        log.info(f"Starting Iter #{i} ...")
 
-            # save the iteration examples to the history
-            self.trainExamplesHistory.append(iterationTrainExamples)
+        with self.args.time("self_play") as data:
+            new_examples = self.runSelfPlay()
+            data["num_examples"] = len(new_examples)
+        log.info(f"Collected {len(new_examples)} examples.")
 
-            while len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory:
-                log.warning(
-                    f"Removing the oldest entry in trainExamples. len(trainExamplesHistory) = {len(self.trainExamplesHistory)}")
-                self.trainExamplesHistory.pop(0)
+        exdir = os.path.join(self.args.dataDirectory, "examples")
+        os.makedirs(exdir, exist_ok=True)
+        ex_file = f"{self.args.runId}-{i}-{len(new_examples)}.pkl"
+        save_examples(new_examples, os.path.join(exdir, ex_file))
+        self.args.write_log(
+            "examples_collected",
+            {"iteration": i, "num_examples": len(new_examples), "file": ex_file},
+        )
 
-            # shuffle examples before training
-            trainExamples = []
-            for e in self.trainExamplesHistory:
-                trainExamples.extend(e)
-            shuffle(trainExamples)
+        self.trainExamplesHistory.append(new_examples)
 
-            # training new network, keeping a copy of the old one
-            if not os.path.exists(self.args.checkpoint):
-                print("Checkpoint Directory does not exist! Making directory {}".format(self.args.checkpoint))
-                os.mkdir(self.args.checkpoint)
+        while (
+            len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory
+        ):
+            log.warning(
+                f"Removing the oldest entry in trainExamples. len(trainExamplesHistory) = {len(self.trainExamplesHistory)}"
+            )
+            self.trainExamplesHistory.pop(0)
 
-            #print("Saving previous network...")
-            #temp_file = os.path.join(self.args.checkpoint, 'temp.pth.tar')
-            #self.nnet.save_checkpoint(temp_file)
+        # shuffle examples before training
+        trainExamples = []
+        for e in self.trainExamplesHistory:
+            trainExamples.extend(e)
+        shuffle(trainExamples)
 
-            # Previous network
-            #self.pnet.load_checkpoint(temp_file)
-            pmcts = MCTS(self.game, self.pnet, self.args)
-
-            # Train the new network
+        # Train the new network
+        with self.args.time("train") as data:
             self.nnet.train(trainExamples)
-            nmcts = MCTS(self.game, self.nnet, self.args)
+            data["num_examples"] = len(trainExamples)
 
-            # Play against the previous network
-            log.info('PITTING AGAINST PREVIOUS VERSION')
-            arena = Arena(lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
-                          lambda x: np.argmax(nmcts.getActionProb(x, temp=0)), self.game)
+        pmcts = MCTS(self.game, self.pnet, self.args)
+        nmcts = MCTS(self.game, self.nnet, self.args)
+
+        # Play against the previous network
+        log.info("PITTING AGAINST PREVIOUS VERSION")
+        with self.args.time("arena") as data:
+            arena = Arena(
+                self.args,
+                lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
+                lambda x: np.argmax(nmcts.getActionProb(x, temp=0)),
+                self.game,
+            )
             pwins, nwins, draws = arena.playGames(self.args.arenaCompare)
+            is_new_better = (
+                float(nwins) / ((pwins + nwins) or 1) > self.args.updateThreshold
+            )
+            data.update(
+                {
+                    "prev_wins": pwins,
+                    "new_wins": nwins,
+                    "draws": draws,
+                    "is_new_better": is_new_better,
+                }
+            )
 
-            log.info('PRV/NEW WINS : %d / %d ; DRAWS : %d' % (pwins, nwins, draws))
-            is_new_better = float(nwins) / ((pwins + nwins) or 1) > self.args.updateThreshold
-            if not is_new_better:
-                log.info('REJECTING NEW MODEL')
-                self.nnet.load_checkpoint(temp_checkpoint)
-            else:
-                log.info('ACCEPTING NEW MODEL')
-                best_file = os.path.join(self.args.checkpoint, 'best.pth.tar')
+        log.info("PRV/NEW WINS : %d / %d ; DRAWS : %d" % (pwins, nwins, draws))
+        if not is_new_better:
+            log.info("REJECTING NEW MODEL")
+            self.nnet = self.pnet
+        else:
+            log.info("ACCEPTING NEW MODEL")
+            with self.args.time("save_best") as data:
+                best_file = os.path.join(self.args.dataDirectory, "best.pth.tar")
                 self.nnet.save_checkpoint(best_file)
                 self.saveTrainExamples(best_file)
+                best_file_link = f"{self.args.runId}-best-{i}.pth.tar"
+                os.link(
+                    best_file, os.path.join(self.args.dataDirectory, best_file_link)
+                )
+                data["file"] = best_file_link
                 self.pnet.load_checkpoint(best_file)
 
     def saveTrainExamples(self, checkpoint_file):
         filename = checkpoint_file + ".examples"
-        with open(filename, "wb+") as f:
-            Pickler(f).dump(self.trainExamplesHistory)
-        f.closed
+        save_examples(self.trainExamplesHistory, filename)
 
     def loadTrainExamples(self):
-        modelFile = os.path.join(self.args.checkpoint, self.args.load_folder_file)
+        modelFile = os.path.join(self.args.dataDirectory, self.args.load_folder_file)
         examplesFile = modelFile + ".examples"
         if not os.path.isfile(examplesFile):
             log.warning(f'File "{examplesFile}" with trainExamples not found!')
@@ -221,4 +277,22 @@ class Coach():
             log.info("File with trainExamples found. Loading it...")
             with open(examplesFile, "rb") as f:
                 self.trainExamplesHistory = Unpickler(f).load()
-            log.info('Loading done!')
+            log.info("Loading done!")
+
+    def runSelfPlay(self):
+        iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
+        for _ in tqdm(range(self.args.numEps), desc="Self Play"):
+            self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
+            iterationTrainExamples += self.executeEpisode()
+        return iterationTrainExamples
+
+
+def save_examples(examples, filename):
+    with open(filename, "wb+") as f:
+        Pickler(f).dump(examples)
+    f.closed
+
+
+def load_examples(filename):
+    with open(filename, "rb") as f:
+        return Unpickler(f).load()

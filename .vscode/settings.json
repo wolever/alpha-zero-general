@@ -1,0 +1,5 @@
+{
+    "python.analysis.autoImportCompletions": true,
+    "cursorpyright.analysis.autoImportCompletions": true,
+    "editor.formatOnSave": true
+}
