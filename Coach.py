@@ -179,7 +179,7 @@ class Coach:
                             "error_count": error_count,
                         }
                     )
-                    log.error(f"Error in iteration {i}: {e}")
+                    log.exception(f"Error in iteration {i}: {e}")
                     if wandb.run is not None:
                         wandb.log(
                             {
@@ -290,7 +290,7 @@ class Coach:
                     }
                 )
 
-        log.info("PRV/NEW WINS : %d / %d ; DRAWS : %d" % (pwins, nwins, draws))
+        log.info("OLD/NEW WINS : %d / %d ; DRAWS : %d" % (pwins, nwins, draws))
         if not is_new_better:
             log.info("REJECTING NEW MODEL")
             self.nnet = self.pnet
@@ -328,7 +328,9 @@ class Coach:
             return
 
         files = sorted(
-            f for f in os.listdir(exdir) if f.endswith(".pkl") and os.path.isfile(os.path.join(exdir, f))
+            f
+            for f in os.listdir(exdir)
+            if f.endswith(".pkl") and os.path.isfile(os.path.join(exdir, f))
         )
         if not files:
             log.warning(f'No example files found in "{exdir}".')
@@ -356,7 +358,9 @@ class Coach:
             log.info(f"Loaded {num} examples from {fname}")
 
         if not self.trainExamplesHistory:
-            log.warning(f"Finished loading examples from {exdir}, but none were usable.")
+            log.warning(
+                f"Finished loading examples from {exdir}, but none were usable."
+            )
             return
 
         self.skip_first_self_play = True

@@ -27,7 +27,7 @@ coloredlogs.install(level="INFO")  # Change this to DEBUG to see more info.
 class TrainingArgs(BaseModel):
     runId: str = datetime.now().strftime("%Y%m%d%H%M%S")
     numIters: int = 1000
-    numEps: int = 200  # Number of self-play games per iteration
+    numEps: int = 20  # Number of self-play games per iteration
     tempThreshold: int = 7  # The first N moves are random, then the rest are greedy
     updateThreshold: float = 0.6  # During arena playoff, new neural net will be accepted if threshold or more of games are won.
     numMCTSSims: int = 50  # Number of games moves for MCTS to simulate.
@@ -38,7 +38,7 @@ class TrainingArgs(BaseModel):
         f"./checkpoints-{Game.__name__}-v0"  # Directory to save the checkpoints
     )
     load_model: bool = False  # Whether to load the model from the checkpoint
-    load_examples: bool = True  # Whether to load the examples from the checkpoint
+    load_examples: bool = False  # Whether to load the examples from the checkpoint
     load_folder_file: str = "best.pth.tar"  # Name of the checkpoint file
 
     maxTurnsInGame: int = (

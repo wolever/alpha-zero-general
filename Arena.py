@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from main import TrainingArgs
 
 
-class Arena():
+class Arena:
     """
     An Arena class where any 2 agents can be pit against each other.
     """
@@ -34,11 +34,13 @@ class Arena():
         """
         self.args = args
         self.player1 = player1
+        self.player1.name = "old"
         self.player2 = player2
+        self.player2.name = "new"
         self.game = game
         self.display = display or self.game.display
 
-    def playGame(self, verbose=False):
+    def playGame(self, player1, player2, verbose=False):
         """
         Executes one episode of a game.
 
@@ -48,7 +50,7 @@ class Arena():
             or
                 draw result returned from the game that is neither 1, -1, nor 0.
         """
-        players = [self.player2, None, self.player1]
+        players = [None, player1, player2]
         curPlayer = 1
         board = self.game.getInitBoard()
         it = 0
@@ -59,36 +61,35 @@ class Arena():
             if hasattr(player, "startGame"):
                 player.startGame()
 
-        while self.game.getGameEnded(board, curPlayer) == 0:
+        while not self.game.getGameEnded(board, curPlayer):
             it += 1
             if verbose:
                 assert self.display
-                print(f"Starting turn {it} for player {curPlayer}")
+                print(
+                    f"Starting turn {it} for player {players[curPlayer].name} ({curPlayer})"
+                )
                 self.display(self.game.getCanonicalForm(board, curPlayer))
 
-            action = players[curPlayer + 1](board)
+            action = players[curPlayer](board)
             valids = self.game.getValidMoves(board, 1)
 
             if valids[action] == 0:
-                log.error(f'Action {action} is not valid!')
-                log.info(f'valids = {valids}')
-                log.info(f'board = {board}')
+                log.error(f"Action {action} is not valid!")
+                log.info(f"curPlayer = {players[curPlayer].name} ({curPlayer})")
+                log.info(f"action = {action}")
+                log.info(f"valids = {valids}")
+                log.info(f"board = {board}")
                 self.game.display(self.game.getCanonicalForm(board, curPlayer))
                 break
 
             # Notifying the opponent for the move
-            opponent = players[-curPlayer + 1]
+            opponent = players[-curPlayer]
             if hasattr(opponent, "notify"):
                 opponent.notify(board, action)
 
-            #print("Player", curPlayer, "playing action", action)
-            #print("Board before move:")
-            #self.game.display(board)
             newBoard, newPlayer = self.game.getNextState(board, 1, action)
-            #print("Board after move:")
-            #self.game.display(board)
             if newPlayer == -1:
-                curPlayer *= -1
+                curPlayer = -curPlayer
                 board = self.game.getCanonicalForm(newBoard, -1)
             else:
                 board = newBoard
@@ -97,22 +98,17 @@ class Arena():
                 print("STUCK IN LOOP")
                 print(curPlayer)
                 print(board)
-                print(action, '=', JGGame.action_unpack(action))
+                print(action, "=", JGGame.action_unpack(action))
                 break
 
         winner = curPlayer * self.game.getGameEnded(board, 1)
-        print(f"Game over! Player {winner} won after {it} turns")
         self.game.display(self.game.getCanonicalForm(board, curPlayer))
 
         for player in players[0], players[2]:
             if hasattr(player, "endGame"):
                 player.endGame()
 
-        if verbose:
-            assert self.display
-            print("Game over: Turn ", str(it), "Result ", str(self.game.getGameEnded(board, 1)))
-            self.display(board)
-        return winner
+        return winner, it, curPlayer
 
     def playGames(self, num, verbose=False):
         """
@@ -126,54 +122,42 @@ class Arena():
         """
 
         num = int(num / 2)
-        oneWon = 0
-        twoWon = 0
-        draws = 0
+
+        class draw:
+            name = "draw"
+
+        players = [draw, self.player1, self.player2]
+        wins = [0, 0, 0]  # [draw, old, new]
         game_index = 0
 
         # First half: player1 starts.
-        for _ in tqdm(range(num), desc="Arena.playGames (1)"):
-            game_index += 1
-            gameResult = self.playGame(verbose=verbose)
-            if gameResult == 1:
-                oneWon += 1
-            elif gameResult == -1:
-                twoWon += 1
-            else:
-                draws += 1
+        for round_num, r in enumerate([1, -1]):
+            round_num += 1
+            for _ in range(num):
+                with self.args.time("arena_round") as data:
+                    game_index += 1
+                    gameResult, turns, last_player = self.playGame(
+                        players[r], players[-r], verbose=verbose
+                    )
+                    wins[gameResult * r] += 1
+                    print(
+                        f"Round {round_num} game {game_index} result: {players[gameResult * r].name} ({gameResult * r}) wins "
+                        f"in {turns} turns; "
+                        f"total: old={wins[1]}, new={wins[2]}, draw={wins[0]}"
+                    )
 
-            # Log each arena game outcome to Weights & Biases, if active.
-            if wandb.run is not None:
-                wandb.log(
-                    {
-                        "arena/game_index": game_index,
-                        "arena/phase": 1,
-                        "arena/starting_player": 1,
-                        "arena/game_result": gameResult,
-                    }
-                )
+                    # Log each arena game outcome to Weights & Biases, if active.
+                    data.update(
+                        {
+                            "arena/game_index": game_index,
+                            "arena/phase": round_num,
+                            "arena/starting_player": r,
+                            "arena/starting_player_name": players[r].name,
+                            "arena/ending_player": last_player,
+                            "arena/ending_player_name": players[last_player].name,
+                            "arena/game_result": gameResult * r,
+                            "arena/turns": turns,
+                        }
+                    )
 
-        self.player1, self.player2 = self.player2, self.player1
-
-        # Second half: player2 starts.
-        for _ in tqdm(range(num), desc="Arena.playGames (2)"):
-            game_index += 1
-            gameResult = self.playGame(verbose=verbose)
-            if gameResult == -1:
-                oneWon += 1
-            elif gameResult == 1:
-                twoWon += 1
-            else:
-                draws += 1
-
-            if wandb.run is not None:
-                wandb.log(
-                    {
-                        "arena/game_index": game_index,
-                        "arena/phase": 2,
-                        "arena/starting_player": 2,
-                        "arena/game_result": gameResult,
-                    }
-                )
-
-        return oneWon, twoWon, draws
+        return wins[1], wins[2], wins[0]
