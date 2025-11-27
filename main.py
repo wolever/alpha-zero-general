@@ -32,10 +32,10 @@ class TrainingArgs(BaseModel):
         20  # Gradually reduce stochasticity in MCTS over this many turns
     )
     updateThreshold: float = 0.6  # During arena playoff, new neural net will be accepted if threshold or more of games are won.
-    numMCTSSims: int = 250  # Number of games moves for MCTS to simulate.
-    MCTSDepth: int = 9  # Depth of the MCTS tree.
+    numMCTSSims: int = 750  # Number of games moves for MCTS to simulate.
+    MCTSDepth: int = 15  # Depth of the MCTS tree.
     arenaCompare: int = 16  # Number of games to play during arena play to determine if new net will be accepted.
-    cpuct: int = 3  # Exploration constant
+    cpuct: int = 6  # Exploration constant
     dirichletAlpha: float = 0.3  # Alpha for Dirichlet noise (exploration)
     dirichletEpsilon: float = 0.25  # Weight of Dirichlet noise (exploration)
     dataDirectory: str = (
@@ -54,11 +54,11 @@ class TrainingArgs(BaseModel):
         30  # Number of iterations to store the train examples
     )
 
-    nn_lr: float = 0.001
+    nn_lr: float = 0.01
     nn_dropout: float = 0.3
     nn_epochs: int = 15
     nn_batch_size: int = 1024
-    nn_num_channels: int = 128
+    nn_num_channels: int = 256
 
     _outf: io.TextIOWrapper = PrivateAttr(default=None)
 
@@ -110,7 +110,7 @@ args_fast = TrainingArgs(
     numItersForTrainExamplesHistory=100,
     numMCTSSims=500,
     arenaCompare=10,
-    load_examples=False,
+    load_examples=True,
     load_model=False,
 )
 args_slow = TrainingArgs()
