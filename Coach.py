@@ -268,7 +268,7 @@ class Coach:
                 self.game,
             )
             pwins, nwins, draws, results_in_position = arena.playGames(
-                self.args.arenaCompare
+                self.args.arenaCompare, update_threshold=self.args.updateThreshold
             )
             is_new_better = (
                 float(nwins) / ((pwins + nwins) or 1) > self.args.updateThreshold

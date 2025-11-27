@@ -108,10 +108,15 @@ class Arena:
 
         return winner, it, curPlayer
 
-    def playGames(self, num, verbose=False):
+    def playGames(self, num, verbose=False, update_threshold=None):
         """
         Plays num games in which player1 starts num/2 games and player2 starts
         num/2 games.
+
+        Args:
+            num: Total number of games to play
+            verbose: Whether to print detailed game info
+            update_threshold: Win rate threshold for new model (for early termination)
 
         Returns:
             oneWon: games won by player1
@@ -131,6 +136,7 @@ class Arena:
             [0, 0, 0],  # new is second, [draw, old, new]
         ]
         game_index = 0
+        total_games = num * 2
 
         # First half: player1 starts.
         for round_num, r in enumerate([1, -1]):
@@ -160,5 +166,37 @@ class Arena:
                             "arena-game/turns": turns,
                         }
                     )
+
+                    # Early termination: check if new model can still reach threshold
+                    if update_threshold is not None:
+                        games_played = game_index
+                        games_remaining = total_games - games_played
+                        new_wins = wins[2]
+
+                        # Best case: new model wins all remaining games
+                        max_possible_new_wins = new_wins + games_remaining
+                        max_possible_total = games_played + games_remaining
+
+                        # Can new model still reach threshold?
+                        max_possible_win_rate = (
+                            max_possible_new_wins / max_possible_total
+                            if max_possible_total > 0
+                            else 0
+                        )
+
+                        if max_possible_win_rate < update_threshold:
+                            print(
+                                f"\nEarly termination: New model cannot reach {update_threshold:.1%} threshold"
+                            )
+                            print(
+                                f"  Current: {new_wins}/{games_played} wins ({new_wins / games_played if games_played > 0 else 0:.1%})"
+                            )
+                            print(
+                                f"  Max possible: {max_possible_new_wins}/{max_possible_total} ({max_possible_win_rate:.1%})"
+                            )
+                            print(
+                                f"  Stopping after {games_played}/{total_games} games"
+                            )
+                            return wins[1], wins[2], wins[0], results_in_position
 
         return wins[1], wins[2], wins[0], results_in_position
