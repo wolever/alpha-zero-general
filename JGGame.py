@@ -440,7 +440,7 @@ class JGGame(Game):
             # self.getNextState(board_arr, player, action)
             if dst_idx == PLAYER_CITY_IDXS[-player]:
                 raise GameWin(action)
-            check_board, _ = self.getNextState(board_arr, player, action)
+            # check_board, _ = self.getNextState(board_arr, player, action)
             # if np.any(check_board < 0):
             #    breakpoint()
             actions.append(action)

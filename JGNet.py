@@ -271,7 +271,7 @@ class NNetWrapper(NeuralNet):
         start = time.time()
 
         # preparing input
-        board = torch.FloatTensor(board.astype(np.float64))
+        board = torch.from_numpy(board).float()
         board = board.contiguous().to(nn_args.device)
         board = board.view(1, self.board_x, self.board_y)
         self.nnet.eval()
