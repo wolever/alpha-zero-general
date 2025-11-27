@@ -256,15 +256,7 @@ class Coach:
                     "arena-result/is_new_better": float(is_new_better),
                     "arena-result/first_player_win_rate": (
                         (results_in_position[0][2] + results_in_position[1][1])
-                        / (
-                            (
-                                results_in_position[0][1]
-                                + results_in_position[1][2]
-                                + results_in_position[0][0]
-                                + results_in_position[1][0]
-                            )
-                            or 1
-                        )
+                        / (np.array(results_in_position).sum() or 1)
                     ),
                     "arena-result/new_first/draws": results_in_position[0][0],
                     "arena-result/new_first/old_wins": results_in_position[0][1],

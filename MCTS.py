@@ -63,20 +63,31 @@ class MCTS:
         # Use log-space calculations to prevent overflow when temp is small
         # Convert to numpy array for easier computation
         counts = np.array(counts, dtype=np.float64)
-        
+
         # Handle zero counts: add small epsilon to avoid log(0)
         counts = np.maximum(counts, EPS)
-        
+
         # Compute log(counts) * (1.0 / temp) in log space
         log_counts = np.log(counts) / temp
-        
+
         # Subtract max to prevent overflow when exponentiating
         log_counts_max = np.max(log_counts)
         exp_counts = np.exp(log_counts - log_counts_max)
-        
+
         # Normalize to get probabilities
         counts_sum = np.sum(exp_counts)
+        if counts_sum == 0:
+            # No actions were explored (e.g., all paths hit terminal states or depth limits)
+            # Fall back to uniform distribution over valid moves
+            log.warning(
+                "No actions explored in MCTS, using uniform distribution over valid moves"
+            )
+            valids = self.game.getValidMoves(canonicalBoard, 1)
+            probs = valids / np.sum(valids)
+            return probs.tolist()
+
         probs = (exp_counts / counts_sum).tolist()
+
         return probs
 
     def search(self, canonicalBoard, depth=0):
