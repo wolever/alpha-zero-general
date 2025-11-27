@@ -318,7 +318,7 @@ class Coach:
             log.warning(f'No example files found in "{exdir}".')
             return
 
-        shuffle(files)
+        files.reverse()
         files = files[: self.args.numItersForTrainExamplesHistory]
 
         log.info(f"Loading trainExamples from {len(files)} files in {exdir}...")
