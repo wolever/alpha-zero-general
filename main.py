@@ -108,7 +108,7 @@ sys.setrecursionlimit(10_000)
 args_fast = TrainingArgs(
     numEps=20,
     numItersForTrainExamplesHistory=100,
-    numMCTSSims=750,
+    numMCTSSims=100,
     arenaCompare=10,
     load_examples=True,
     load_model=False,

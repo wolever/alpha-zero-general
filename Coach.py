@@ -1,3 +1,4 @@
+from JGNet import NNetWrapper
 from JGNet import JGNNet
 import logging
 import os
@@ -35,12 +36,14 @@ class Coach:
 
     game: JGGame
     args: "TrainingArgs"
-    nnet: JGNNet
+    nnet: NNetWrapper
+    pnet: NNetWrapper
 
-    def __init__(self, game: JGGame, nnet, args):
+    def __init__(self, game: JGGame, nnet: NNetWrapper, args):
         self.game = game
         self.nnet = nnet
         self.pnet = self.nnet.__class__(self.game, args)  # the competitor network
+        self.pnet.nnet.load_state_dict(self.nnet.nnet.state_dict())
         self.args = args
         self.mcts = MCTS(self.game, self.nnet, self.args)
         self.trainExamplesHistory = []  # history of examples from args.numItersForTrainExamplesHistory latest iterations
@@ -272,7 +275,7 @@ class Coach:
         log.info("OLD/NEW WINS : %d / %d ; DRAWS : %d" % (pwins, nwins, draws))
         if not is_new_better:
             log.info("REJECTING NEW MODEL")
-            self.nnet = self.pnet
+            self.nnet.nnet.load_state_dict(self.pnet.nnet.state_dict())
         else:
             log.info("ACCEPTING NEW MODEL")
             with self.args.time("save_best") as data:
