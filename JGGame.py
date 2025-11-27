@@ -424,12 +424,17 @@ class JGGame(Game):
         self,
         board_arr: np.ndarray[int, int],
         player: int,
+        *,
         __boardCache={},
     ) -> np.ndarray[bool]:
         assert player == 1
         board_bytes = board_arr.tobytes()
         if board_bytes in __boardCache:
             return __boardCache[board_bytes]
+
+        if len(__boardCache) > 250_000:
+            __boardCache.clear()
+
         try:
             res = self._getValidMoves(board_arr, player)
         except GameWin as e:
