@@ -70,27 +70,50 @@ ax_to_ix, ix_to_ax = _gex_axial_to_index_map(generate_board())
 ix_flip_map = [ax_to_ix[qr] for qr in generate_board(flip=True, mirror=True)]
 
 
-def adjacent_idxs(idx: int, player_idx: int):
-    q, r = ix_to_ax[idx]
-    adj_coords = [
-        ((q + 1, r), True),
-        ((q - 1, r), True),
-        ((q, r + 1), player_idx == 1),
-        ((q, r - 1), player_idx == 0),
-        ((q + 1, r + 1), player_idx == 1),
-        ((q - 1, r - 1), player_idx == 0),
-    ]
-    res = []
-    for coord, valid in adj_coords:
-        if not valid:
-            continue
-        idx = ax_to_ix.get(coord)
-        if idx is None:
-            continue
-        if idx == PLAYER_IDX_CITY_IDXS[player_idx]:
-            continue
-        res.append(idx)
+PLAYER_CITY_IDXS = {
+    1: ax_to_ix[(2, 4)],
+    -1: ax_to_ix[(-2, -4)],
+}
+
+PLAYER_IDX_CITY_IDXS = {
+    0: PLAYER_CITY_IDXS[1],
+    1: PLAYER_CITY_IDXS[-1],
+}
+
+
+def _compute_adjacency_map():
+    res = {}
+    for idx in ix_to_ax:
+        q, r = ix_to_ax[idx]
+        # For each player, pre-compute the list of valid adjacent indices
+        for player_idx in [0, 1]:
+            adj_coords = [
+                ((q + 1, r), True),
+                ((q - 1, r), True),
+                ((q, r + 1), player_idx == 1),
+                ((q, r - 1), player_idx == 0),
+                ((q + 1, r + 1), player_idx == 1),
+                ((q - 1, r - 1), player_idx == 0),
+            ]
+            valid_adjs = []
+            for coord, valid in adj_coords:
+                if not valid:
+                    continue
+                adj_idx = ax_to_ix.get(coord)
+                if adj_idx is None:
+                    continue
+                if adj_idx == PLAYER_IDX_CITY_IDXS[player_idx]:
+                    continue
+                valid_adjs.append(adj_idx)
+            res[(idx, player_idx)] = valid_adjs
     return res
+
+
+ADJACENCY_MAP = _compute_adjacency_map()
+
+
+def adjacent_idxs(idx: int, player_idx: int):
+    return ADJACENCY_MAP[(idx, player_idx)]
 
 
 def flood_fill(
@@ -170,15 +193,6 @@ Board layout:
 # where the coin_count is positive for player 1, and negative for player -1
 _board_len = len(ix_to_ax) + 2
 
-PLAYER_CITY_IDXS = {
-    1: ax_to_ix[(2, 4)],
-    -1: ax_to_ix[(-2, -4)],
-}
-
-PLAYER_IDX_CITY_IDXS = {
-    0: PLAYER_CITY_IDXS[1],
-    1: PLAYER_CITY_IDXS[-1],
-}
 
 _player_starting_idxs = parse_idxs("""
                 ( 0  4) ( 1  4) (     ) ( 3  4) ( 4  4)

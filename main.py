@@ -105,7 +105,7 @@ args_fast = TrainingArgs(
     numMCTSSims=750,
     arenaCompare=10,
     load_examples=False,
-    load_model=True,
+    load_model=False,
 )
 args_slow = TrainingArgs()
 args = args_fast if os.getenv("FAST") else args_slow

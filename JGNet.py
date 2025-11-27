@@ -54,6 +54,13 @@ class JGNNet(nn.Module):
         self.grid_size = 9
         self.register_buffer("idx_to_xy", self._create_idx_mapping())
 
+        # Pre-compute flattened coordinates for scatter
+        # We only need the first 61 entries for the board
+        coords = self.idx_to_xy[:61]
+        xs = coords[:, 0]
+        ys = coords[:, 1]
+        self.register_buffer("coords_flat", xs * self.grid_size + ys)
+
         # Input is 3 channels:
         # 0: Board state
         # 1: Player 1 coins to add (constant plane)
@@ -124,9 +131,9 @@ class JGNNet(nn.Module):
 
         # Get x and y coordinates for the 61 board positions
         # mapping is 63x2, take first 61
-        coords = self.idx_to_xy[:61]  # 61 x 2
-        xs = coords[:, 0]
-        ys = coords[:, 1]
+        # coords = self.idx_to_xy[:61]  # 61 x 2
+        # xs = coords[:, 0]
+        # ys = coords[:, 1]
 
         # Assign values.
         # We want x[:, 0, xs, ys] = board_vals
@@ -136,8 +143,6 @@ class JGNNet(nn.Module):
 
         # Let's use a flat view for assignment to be safe and efficient
         # Grid flat size is 81.
-        # coords_flat = xs * 9 + ys
-        coords_flat = xs * self.grid_size + ys  # 61
 
         # Create a flat view of the first channel: batch x 81
         x_c0_flat = x[:, 0, :, :].view(batch_size, -1)
@@ -148,7 +153,7 @@ class JGNNet(nn.Module):
         # scatter is best.
         # dim=1, index=coords_flat expanded, src=board_vals
 
-        index = coords_flat.unsqueeze(0).expand(batch_size, -1)  # batch x 61
+        index = self.coords_flat.unsqueeze(0).expand(batch_size, -1)  # batch x 61
         x_c0_flat.scatter_(1, index, board_vals)
 
         # Reshape back (done automatically since it's a view)
