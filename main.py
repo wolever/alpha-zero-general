@@ -35,8 +35,10 @@ class TrainingArgs(BaseModel):
     numMCTSSims: int = 750  # Number of games moves for MCTS to simulate.
     MCTSDepth: int = 15  # Depth of the MCTS tree.
     arenaCompare: int = 16  # Number of games to play during arena play to determine if new net will be accepted.
-    cpuct: int = 6  # Exploration constant
-    dirichletAlpha: float = 0.3  # Alpha for Dirichlet noise (exploration)
+    cpuct: int = 3  # Exploration constant (lower = more exploration vs exploitation)
+    dirichletAlpha: float = (
+        0.8  # Alpha for Dirichlet noise (higher = more uniform noise)
+    )
     dirichletEpsilon: float = 0.25  # Weight of Dirichlet noise (exploration)
     dataDirectory: str = (
         f"./checkpoints-{Game.__name__}-v1"  # Directory to save the checkpoints

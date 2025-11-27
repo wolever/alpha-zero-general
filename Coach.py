@@ -82,8 +82,24 @@ class Coach:
                 Board(self.game.getCanonicalForm(boardCanonical, playerAbs)).display()
                 return ([], episodeStep, 0)
 
-            # Temperature decay: starts at 1.0, decays linearly to 0.01 over tempThreshold turns
-            temp = max(0.01, 1.0 - (episodeStep / self.args.tempThreshold))
+            # Temperature decay: Keep high exploration early, then decay gradually
+            # This prevents premature convergence on trivial opening patterns
+            if episodeStep < self.args.tempThreshold // 2:
+                # Keep temp=1.0 for first half of tempThreshold (first 10 turns)
+                temp = 1.0
+            elif episodeStep < self.args.tempThreshold:
+                # Decay from 1.0 to 0.5 over turns 10-20
+                progress = (episodeStep - self.args.tempThreshold // 2) / (
+                    self.args.tempThreshold // 2
+                )
+                temp = 1.0 - 0.5 * progress
+            else:
+                # Decay from 0.5 to 0.1 over turns 20-40
+                progress = min(
+                    1.0,
+                    (episodeStep - self.args.tempThreshold) / self.args.tempThreshold,
+                )
+                temp = 0.5 - 0.4 * progress
             pi = self.mcts.getActionProb(boardCanonical, temp=temp)
             sym = self.game.getSymmetries(boardCanonical, pi)
             for b, p in sym:
@@ -238,8 +254,10 @@ class Coach:
         with self.args.time("arena-result") as data:
             arena = Arena(
                 self.args,
-                lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
-                lambda x: np.argmax(nmcts.getActionProb(x, temp=0)),
+                lambda x: np.argmax(
+                    pmcts.getActionProb(x, temp=0.2)
+                ),  # Small temp for robustness testing
+                lambda x: np.argmax(nmcts.getActionProb(x, temp=0.2)),
                 self.game,
             )
             pwins, nwins, draws, results_in_position = arena.playGames(
