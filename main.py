@@ -54,6 +54,12 @@ class TrainingArgs(BaseModel):
         30  # Number of iterations to store the train examples
     )
 
+    nn_lr: float = 0.001
+    nn_dropout: float = 0.3
+    nn_epochs: int = 15
+    nn_batch_size: int = 1024
+    nn_num_channels: int = 128
+
     _outf: io.TextIOWrapper = PrivateAttr(default=None)
 
     def write_log(self, event: str, data: dict):
@@ -104,7 +110,7 @@ args_fast = TrainingArgs(
     numItersForTrainExamplesHistory=100,
     numMCTSSims=750,
     arenaCompare=10,
-    load_examples=False,
+    load_examples=True,
     load_model=False,
 )
 args_slow = TrainingArgs()

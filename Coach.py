@@ -1,3 +1,4 @@
+from JGNet import JGNNet
 import logging
 import os
 import traceback
@@ -34,6 +35,7 @@ class Coach:
 
     game: JGGame
     args: "TrainingArgs"
+    nnet: JGNNet
 
     def __init__(self, game: JGGame, nnet, args):
         self.game = game

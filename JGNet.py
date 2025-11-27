@@ -19,31 +19,23 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-
-nn_args = dotdict(
-    {
-        "lr": 0.001,
-        "dropout": 0.3,
-        "epochs": 10,
-        "batch_size": 64,
-        "device": (
-            "cuda"
-            if torch.cuda.is_available()
-            else "mps"
-            if torch.backends.mps.is_available()
-            else "cpu"
-        ),
-        "num_channels": 1024,
-    }
+DEVICE = (
+    "cuda"
+    if torch.cuda.is_available()
+    else "mps"
+    if torch.backends.mps.is_available()
+    else "cpu"
 )
 
 
 class JGNNet(nn.Module):
-    def __init__(self, game: JGGame, nn_args):
+    args: "TrainingArgs"
+
+    def __init__(self, game: JGGame, args: "TrainingArgs"):
         # game params
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
-        self.nn_args = nn_args
+        self.args = args
 
         super(JGNNet, self).__init__()
 
@@ -65,24 +57,24 @@ class JGNNet(nn.Module):
         # 0: Board state
         # 1: Player 1 coins to add (constant plane)
         # 2: Player 2 coins to add (constant plane)
-        self.conv1 = nn.Conv2d(3, nn_args.num_channels, 3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(3, self.args.nn_num_channels, 3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(
-            nn_args.num_channels, nn_args.num_channels, 3, stride=1, padding=1
+            self.args.nn_num_channels, self.args.nn_num_channels, 3, stride=1, padding=1
         )
         self.conv3 = nn.Conv2d(
-            nn_args.num_channels, nn_args.num_channels, 3, stride=1, padding=1
+            self.args.nn_num_channels, self.args.nn_num_channels, 3, stride=1, padding=1
         )
         self.conv4 = nn.Conv2d(
-            nn_args.num_channels, nn_args.num_channels, 3, stride=1, padding=1
+            self.args.nn_num_channels, self.args.nn_num_channels, 3, stride=1, padding=1
         )
 
-        self.bn1 = nn.BatchNorm2d(nn_args.num_channels)
-        self.bn2 = nn.BatchNorm2d(nn_args.num_channels)
-        self.bn3 = nn.BatchNorm2d(nn_args.num_channels)
-        self.bn4 = nn.BatchNorm2d(nn_args.num_channels)
+        self.bn1 = nn.BatchNorm2d(self.args.nn_num_channels)
+        self.bn2 = nn.BatchNorm2d(self.args.nn_num_channels)
+        self.bn3 = nn.BatchNorm2d(self.args.nn_num_channels)
+        self.bn4 = nn.BatchNorm2d(self.args.nn_num_channels)
 
         self.fc1 = nn.Linear(
-            nn_args.num_channels * self.grid_size * self.grid_size, 2048
+            self.args.nn_num_channels * self.grid_size * self.grid_size, 2048
         )
         self.fc_bn1 = nn.BatchNorm1d(2048)
 
@@ -117,7 +109,7 @@ class JGNNet(nn.Module):
 
         # 1. Transform 1D input to 3-channel 9x9 2D input
         # Initialize grid: batch x 3 x 9 x 9
-        x = torch.zeros(batch_size, 3, self.grid_size, self.grid_size, device=s.device)
+        x = torch.zeros(batch_size, 3, self.grid_size, self.grid_size, device=DEVICE)
 
         # Channel 0: Board state
         # We need to scatter the values from s into the grid positions
@@ -177,12 +169,12 @@ class JGNNet(nn.Module):
 
         s = F.dropout(
             F.relu(self.fc_bn1(self.fc1(s))),
-            p=self.nn_args.dropout,
+            p=self.args.nn_dropout,
             training=self.training,
         )
         s = F.dropout(
             F.relu(self.fc_bn2(self.fc2(s))),
-            p=self.nn_args.dropout,
+            p=self.args.nn_dropout,
             training=self.training,
         )
 
@@ -198,12 +190,10 @@ class NNetWrapper(NeuralNet):
 
     def __init__(self, game, args):
         self.args = args
-        self.nnet = JGNNet(game, nn_args)
+        self.nnet = JGNNet(game, args)
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
-
-        if nn_args.device:
-            self.nnet.to(nn_args.device)
+        self.nnet.to(DEVICE)
 
     def train(self, examples):
         """
@@ -213,19 +203,19 @@ class NNetWrapper(NeuralNet):
         num_examples = len(examples)
         print(f"Training net on {num_examples} examples...")
 
-        for epoch in range(nn_args.epochs):
+        for epoch in range(self.args.nn_epochs):
             epoch += 1
             with self.args.time("train/epoch") as data:
                 self.nnet.train()
                 pi_losses = AverageMeter()
                 v_losses = AverageMeter()
 
-                batch_count = int(num_examples / nn_args.batch_size)
+                batch_count = int(num_examples / self.args.nn_batch_size)
 
                 t = tqdm(range(batch_count), desc=f"Epoch {epoch:2d}")
                 for _ in t:
                     sample_ids = np.random.randint(
-                        num_examples, size=nn_args.batch_size
+                        num_examples, size=self.args.nn_batch_size
                     )
                     boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
                     boards = torch.FloatTensor(np.array(boards).astype(np.float64))
@@ -233,14 +223,11 @@ class NNetWrapper(NeuralNet):
                     target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
                     # predict
-                    if nn_args.device:
-                        boards, target_pis, target_vs = (
-                            boards.contiguous().to(nn_args.device),
-                            target_pis.contiguous().to(nn_args.device),
-                            target_vs.contiguous().to(nn_args.device),
-                        )
-                    else:
-                        raise AssertionError("No GPU device!")
+                    boards, target_pis, target_vs = (
+                        boards.contiguous().to(DEVICE),
+                        target_pis.contiguous().to(DEVICE),
+                        target_vs.contiguous().to(DEVICE),
+                    )
 
                     # compute output
                     out_pi, out_v = self.nnet(boards)
@@ -272,12 +259,8 @@ class NNetWrapper(NeuralNet):
         """
         board: np array with board
         """
-        # timing
-        start = time.time()
-
-        # preparing input
         board = torch.from_numpy(board).float()
-        board = board.contiguous().to(nn_args.device)
+        board = board.contiguous().to(DEVICE)
         board = board.view(1, self.board_x, self.board_y)
         self.nnet.eval()
         with torch.no_grad():
@@ -300,6 +283,6 @@ class NNetWrapper(NeuralNet):
         if not os.path.exists(filename):
             log.warning(f"Previous model not found: {filename}")
             return
-        map_location = nn_args.device
+        map_location = DEVICE
         checkpoint = torch.load(filename, map_location=map_location)
         self.nnet.load_state_dict(checkpoint["state_dict"])
