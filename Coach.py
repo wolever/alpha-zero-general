@@ -7,6 +7,7 @@ from collections import deque
 from pickle import Pickler, Unpickler
 from random import shuffle
 from typing import TYPE_CHECKING
+import multiprocessing as mp
 
 import numpy as np
 from tqdm import tqdm
@@ -51,7 +52,8 @@ class Coach:
         # round in learn() and immediately start training from them.
         self.skip_first_self_play = False
 
-    def executeEpisode(self):
+    @staticmethod
+    def executeEpisode(mcts, game, args):
         """
         This function executes one episode of self-play, starting with player 1.
         As the game is played, each turn is added as a training example to
@@ -62,6 +64,11 @@ class Coach:
         It uses a temp=1 if episodeStep < tempThreshold, and thereafter
         uses temp=0.
 
+        Args:
+            mcts: MCTS instance to use for action selection
+            game: Game instance
+            args: Training arguments
+
         Returns:
             trainExamples: a list of examples of the form (canonicalBoard, currPlayer, pi,v)
                            pi is the MCTS informed policy vector, v is +1 if
@@ -69,50 +76,50 @@ class Coach:
         """
         trainExamples = []
         playerAbs = 1
-        boardCanonical = self.game.getInitBoard()
+        boardCanonical = game.getInitBoard()
         episodeStep = 0
 
         from JGGame import Board, action_unpack
 
         while True:
             episodeStep += 1
-            if episodeStep > self.args.maxTurnsInGame:
+            if episodeStep > args.maxTurnsInGame:
                 print("\nSTUCK IN LOOP")
                 print("Player:", playerAbs)
-                Board(self.game.getCanonicalForm(boardCanonical, playerAbs)).display()
+                Board(game.getCanonicalForm(boardCanonical, playerAbs)).display()
                 return ([], episodeStep, 0)
 
             # Temperature decay: Keep high exploration early, then decay gradually
             # This prevents premature convergence on trivial opening patterns
-            if episodeStep < self.args.tempThreshold // 2:
+            if episodeStep < args.tempThreshold // 2:
                 # Keep temp=1.0 for first half of tempThreshold (first 10 turns)
                 temp = 1.0
-            elif episodeStep < self.args.tempThreshold:
+            elif episodeStep < args.tempThreshold:
                 # Decay from 1.0 to 0.5 over turns 10-20
-                progress = (episodeStep - self.args.tempThreshold // 2) / (
-                    self.args.tempThreshold // 2
+                progress = (episodeStep - args.tempThreshold // 2) / (
+                    args.tempThreshold // 2
                 )
                 temp = 1.0 - 0.5 * progress
             else:
                 # Decay from 0.5 to 0.1 over turns 20-40
                 progress = min(
                     1.0,
-                    (episodeStep - self.args.tempThreshold) / self.args.tempThreshold,
+                    (episodeStep - args.tempThreshold) / args.tempThreshold,
                 )
                 temp = 0.5 - 0.4 * progress
-            pi = self.mcts.getActionProb(boardCanonical, temp=temp)
-            sym = self.game.getSymmetries(boardCanonical, pi)
+            pi = mcts.getActionProb(boardCanonical, temp=temp)
+            sym = game.getSymmetries(boardCanonical, pi)
             for b, p in sym:
                 trainExamples.append([playerAbs, b, p])
 
             action = np.random.choice(len(pi), p=pi)
-            nextBoard, nextPlayer = self.game.getNextState(boardCanonical, 1, action)
+            nextBoard, nextPlayer = game.getNextState(boardCanonical, 1, action)
 
-            winnerCanonical = self.game.getGameEnded(nextBoard, 1)
+            winnerCanonical = game.getGameEnded(nextBoard, 1)
             if not winnerCanonical:
                 if nextPlayer != 1:
                     playerAbs = -playerAbs
-                    boardCanonical = self.game.getCanonicalForm(nextBoard, -1)
+                    boardCanonical = game.getCanonicalForm(nextBoard, -1)
                 else:
                     boardCanonical = nextBoard
                 continue
@@ -374,33 +381,105 @@ class Coach:
         )
 
     def runSelfPlay(self):
+        """
+        Execute self-play games, optionally in parallel.
+
+        Uses multiprocessing to run multiple episodes concurrently if
+        args.numParallelSelfPlay > 1.
+
+        Returns:
+            Tuple of (iterationTrainExamples, winners)
+        """
+        from parallel_worker import execute_episode_worker
+
         winners = []
         iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
-        for _ in tqdm(range(self.args.numEps), desc="Self Play"):
-            with self.args.time("self-play-game") as data:
-                try:
-                    self.mcts = MCTS(
-                        self.game, self.nnet, self.args
-                    )  # reset search tree
-                    trainExamples, episodeStep, winnerAbs = self.executeEpisode()
-                    iterationTrainExamples += trainExamples
-                    data.update(
-                        {
-                            "self-play-game/result": "success",
-                            "self-play-game/winner": winnerAbs,
-                            "self-play-game/turns": episodeStep,
-                            "self-play-game/examples": len(trainExamples),
-                        }
-                    )
-                    winners.append(winnerAbs)
-                except Exception as e:
-                    log.exception(f"Failed to execute episode: {e}")
-                    data.update(
-                        {
-                            "self-play-game/result": "failed",
-                            "self-play-game/error": repr(e),
-                        }
-                    )
+
+        num_workers = getattr(self.args, "numParallelSelfPlay", 1)
+        num_episodes = self.args.numEps
+
+        if num_workers > 1:
+            # Parallel execution using multiprocessing
+            log.info(f"Running self-play with {num_workers} parallel workers")
+
+            # Get the neural network state dict and move to CPU for sharing
+            nnet_state_dict = {
+                k: v.cpu() for k, v in self.nnet.nnet.state_dict().items()
+            }
+
+            # Create a pickleable copy of args (exclude file handle)
+            args_dict = self.args.model_dump()
+            from main import TrainingArgs
+
+            pickleable_args = TrainingArgs(**args_dict)
+
+            # Prepare arguments for each worker
+            worker_args = [
+                (i, pickleable_args, nnet_state_dict, self.game.__class__)
+                for i in range(num_episodes)
+            ]
+
+            # Create process pool and execute episodes in parallel
+            with mp.Pool(processes=num_workers) as pool:
+                results = []
+                with tqdm(total=num_episodes, desc="Self Play") as pbar:
+                    for result in pool.imap_unordered(
+                        execute_episode_worker, worker_args
+                    ):
+                        results.append(result)
+
+                        # Log each game
+                        trainExamples, episodeStep, winnerAbs = result
+                        with self.args.time("self-play-game") as data:
+                            data.update(
+                                {
+                                    "self-play-game/result": (
+                                        "success" if trainExamples else "failed"
+                                    ),
+                                    "self-play-game/winner": winnerAbs,
+                                    "self-play-game/turns": episodeStep,
+                                    "self-play-game/examples": len(trainExamples),
+                                }
+                            )
+
+                        pbar.update(1)
+
+            # Collect all results
+            for trainExamples, episodeStep, winnerAbs in results:
+                iterationTrainExamples += trainExamples
+                winners.append(winnerAbs)
+
+        else:
+            # Sequential execution (original implementation)
+            log.info("Running self-play sequentially")
+            for _ in tqdm(range(num_episodes), desc="Self Play"):
+                with self.args.time("self-play-game") as data:
+                    try:
+                        self.mcts = MCTS(
+                            self.game, self.nnet, self.args
+                        )  # reset search tree
+                        trainExamples, episodeStep, winnerAbs = Coach.executeEpisode(
+                            self.mcts, self.game, self.args
+                        )
+                        iterationTrainExamples += trainExamples
+                        data.update(
+                            {
+                                "self-play-game/result": "success",
+                                "self-play-game/winner": winnerAbs,
+                                "self-play-game/turns": episodeStep,
+                                "self-play-game/examples": len(trainExamples),
+                            }
+                        )
+                        winners.append(winnerAbs)
+                    except Exception as e:
+                        log.exception(f"Failed to execute episode: {e}")
+                        data.update(
+                            {
+                                "self-play-game/result": "failed",
+                                "self-play-game/error": repr(e),
+                            }
+                        )
+
         return iterationTrainExamples, winners
 
 

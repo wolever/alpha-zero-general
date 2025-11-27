@@ -51,6 +51,8 @@ class TrainingArgs(BaseModel):
         50  # Maximum number of turns in a game before it's considered a draw.
     )
 
+    numParallelSelfPlay: int = 4  # Number of parallel self-play processes
+
     maxlenOfQueue: int = 5_000  # Number of game examples to train the neural networks.
     numItersForTrainExamplesHistory: int = (
         30  # Number of iterations to store the train examples
