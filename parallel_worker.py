@@ -1,34 +1,67 @@
 """
-Worker function for parallel self-play execution.
-This needs to be at module level for multiprocessing to pickle it.
+Worker function for parallel self-play execution with persistent state.
+Workers initialize once with the neural network, then run multiple episodes.
 """
 
 from MCTS import MCTS
 from JGNet import NNetWrapper
 
+# Global worker state (initialized once per worker process)
+_worker_game = None
+_worker_nnet = None
+_worker_args = None
 
-def execute_episode_worker(args_tuple):
+
+def init_worker(args, nnet_state_dict, game_class):
     """
-    Worker function to execute a single episode in a separate process.
+    Initialize worker process with neural network and game.
+
+    Called once when worker starts, before any episodes are run.
+    This avoids reloading the network for every episode.
 
     Args:
-        args_tuple: Tuple of (worker_id, args, nnet_state_dict, game_class)
+        args: Training arguments
+        nnet_state_dict: Neural network weights
+        game_class: Game class to instantiate
+    """
+    global _worker_game, _worker_nnet, _worker_args
+
+    # Create game instance (lightweight)
+    _worker_game = game_class()
+
+    # Create and load neural network (expensive, done once per worker)
+    _worker_nnet = NNetWrapper(_worker_game, args)
+    _worker_nnet.nnet.load_state_dict(nnet_state_dict)
+    _worker_nnet.nnet.eval()
+
+    _worker_args = args
+
+
+def execute_episode_worker(worker_id):
+    """
+    Execute a single episode using the pre-loaded network.
+
+    Args:
+        worker_id: Identifier for this episode
 
     Returns:
-        Tuple of (trainExamples, episodeStep, winnerAbs)
+        Tuple of (trainExamples, episodeStep, winnerAbs, duration)
     """
-    worker_id, args, nnet_state_dict, game_class = args_tuple
+    import time
 
-    # Create a fresh neural network and load the weights
-    game = game_class()
-    nnet = NNetWrapper(game, args)
-    nnet.nnet.load_state_dict(nnet_state_dict)
-    nnet.nnet.eval()  # Set to eval mode for inference
+    global _worker_game, _worker_nnet, _worker_args
 
-    # Create MCTS for this episode
-    mcts = MCTS(game, nnet, args)
+    start_time = time.time()
 
-    # Use the shared executeEpisode implementation from Coach
+    # Create fresh MCTS for this episode (uses pre-loaded network)
+    mcts = MCTS(_worker_game, _worker_nnet, _worker_args)
+
+    # Use shared executeEpisode implementation
     from Coach import Coach
 
-    return Coach.executeEpisode(mcts, game, args)
+    result = Coach.executeEpisode(mcts, _worker_game, _worker_args)
+
+    duration = time.time() - start_time
+
+    # Return original result + duration
+    return (*result, duration)

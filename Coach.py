@@ -407,32 +407,35 @@ class Coach:
                 k: v.cpu() for k, v in self.nnet.nnet.state_dict().items()
             }
 
-            # Create a pickleable copy of args (exclude file handle)
+            # Create pickleable args
             args_dict = self.args.model_dump()
             from main import TrainingArgs
 
             pickleable_args = TrainingArgs(**args_dict)
 
-            # Prepare arguments for each worker
-            worker_args = [
-                (i, pickleable_args, nnet_state_dict, self.game.__class__)
-                for i in range(num_episodes)
-            ]
+            # Import the initializer
+            from parallel_worker import init_worker, execute_episode_worker
 
-            # Create process pool and execute episodes in parallel
-            with mp.Pool(processes=num_workers) as pool:
-                results = []
+            # Create process pool with initializer
+            # Workers load the network once during initialization
+            with mp.Pool(
+                processes=num_workers,
+                initializer=init_worker,
+                initargs=(pickleable_args, nnet_state_dict, self.game.__class__),
+            ) as pool:
                 with tqdm(total=num_episodes, desc="Self Play") as pbar:
+                    # Workers are already initialized, just send episode IDs
                     for result in pool.imap_unordered(
-                        execute_episode_worker, worker_args
+                        execute_episode_worker, range(num_episodes)
                     ):
-                        results.append(result)
-
-                        # Log each game
-                        trainExamples, episodeStep, winnerAbs = result
+                        # Log each game (includes duration from worker)
+                        trainExamples, episodeStep, winnerAbs, duration = result
+                        iterationTrainExamples += trainExamples
+                        winners.append(winnerAbs)
                         with self.args.time("self-play-game") as data:
                             data.update(
                                 {
+                                    "duration": duration,  # Override with worker-measured time
                                     "self-play-game/result": (
                                         "success" if trainExamples else "failed"
                                     ),
@@ -443,11 +446,6 @@ class Coach:
                             )
 
                         pbar.update(1)
-
-            # Collect all results
-            for trainExamples, episodeStep, winnerAbs in results:
-                iterationTrainExamples += trainExamples
-                winners.append(winnerAbs)
 
         else:
             # Sequential execution (original implementation)

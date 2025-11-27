@@ -95,7 +95,13 @@ class TrainingArgs(BaseModel):
         for d in self._timeDataStack:
             res_data.update(d)
         res_data.update(data)
-        duration = time.time() - start
+
+        # Use provided duration if available (e.g., from worker process)
+        # Otherwise calculate it here
+        duration = data.pop("duration", None)
+        if duration is None:
+            duration = time.time() - start
+
         self.write_log(step, {"duration": duration, **data})
 
         # Also log timings and associated metadata to Weights & Biases if a run is active.
