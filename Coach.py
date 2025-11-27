@@ -75,7 +75,7 @@ class Coach:
                 print("\nSTUCK IN LOOP")
                 print("Player:", playerAbs)
                 Board(self.game.getCanonicalForm(boardCanonical, playerAbs)).display()
-                return []
+                return ([], episodeStep, 0)
 
             # Temperature decay: starts at 1.0, decays linearly to 0.01 over tempThreshold turns
             temp = max(0.01, 1.0 - (episodeStep / self.args.tempThreshold))
@@ -128,7 +128,11 @@ class Coach:
                 #    Board(x[0]).display()
                 # result.append((board, pi, reward))
 
-            return result  # list[(board, pi, reward)]
+            return (
+                result,  # list[(board, pi, reward)]
+                episodeStep,
+                winnerAbs,
+            )
 
     def learn(self):
         """
@@ -178,8 +182,16 @@ class Coach:
             new_examples = []
         else:
             with self.args.time("self-play") as data:
-                new_examples = self.runSelfPlay()
-                data["self-play/examples"] = len(new_examples)
+                new_examples, winners = self.runSelfPlay()
+                data.update(
+                    {
+                        "self-play/examples": len(new_examples),
+                        "self-play/first_player_win_rate": (
+                            winners.count(1) / (len(winners) or 1)
+                        ),
+                        "self-play/draws": winners.count(0),
+                    }
+                )
             log.info(f"Collected {len(new_examples)} examples.")
 
         exdir = os.path.join(self.args.dataDirectory, "examples")
@@ -347,11 +359,34 @@ class Coach:
         )
 
     def runSelfPlay(self):
+        winners = []
         iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
         for _ in tqdm(range(self.args.numEps), desc="Self Play"):
-            self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
-            iterationTrainExamples += self.executeEpisode()
-        return iterationTrainExamples
+            with self.args.time("self-play-game") as data:
+                try:
+                    self.mcts = MCTS(
+                        self.game, self.nnet, self.args
+                    )  # reset search tree
+                    trainExamples, episodeStep, winnerAbs = self.executeEpisode()
+                    iterationTrainExamples += trainExamples
+                    data.update(
+                        {
+                            "self-play-game/result": "success",
+                            "self-play-game/winner": winnerAbs,
+                            "self-play-game/turns": episodeStep,
+                            "self-play-game/examples": len(trainExamples),
+                        }
+                    )
+                    winners.append(winnerAbs)
+                except Exception as e:
+                    log.exception(f"Failed to execute episode: {e}")
+                    data.update(
+                        {
+                            "self-play-game/result": "failed",
+                            "self-play-game/error": repr(e),
+                        }
+                    )
+        return iterationTrainExamples, winners
 
 
 def save_examples(examples, filename):
