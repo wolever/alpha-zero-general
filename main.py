@@ -32,7 +32,7 @@ class TrainingArgs(BaseModel):
         20  # Gradually reduce stochasticity in MCTS over this many turns
     )
     updateThreshold: float = 0.6  # During arena playoff, new neural net will be accepted if threshold or more of games are won.
-    numMCTSSims: int = 200  # Number of games moves for MCTS to simulate.
+    numMCTSSims: int = 250  # Number of games moves for MCTS to simulate.
     MCTSDepth: int = 9  # Depth of the MCTS tree.
     arenaCompare: int = 16  # Number of games to play during arena play to determine if new net will be accepted.
     cpuct: int = 3  # Exploration constant
@@ -51,7 +51,7 @@ class TrainingArgs(BaseModel):
 
     maxlenOfQueue: int = 5_000  # Number of game examples to train the neural networks.
     numItersForTrainExamplesHistory: int = (
-        25  # Number of iterations to store the train examples
+        30  # Number of iterations to store the train examples
     )
 
     _outf: io.TextIOWrapper = PrivateAttr(default=None)
@@ -86,11 +86,10 @@ class TrainingArgs(BaseModel):
             res_data.update(d)
         res_data.update(data)
         duration = time.time() - start
-        payload = {"duration": duration, **data}
-        self.write_log(step, payload)
+        self.write_log(step, {"duration": duration, **data})
 
         # Also log timings and associated metadata to Weights & Biases if a run is active.
-        wandb.run and wandb.log({f"time/{step}": duration, **payload})
+        wandb.run and wandb.log({f"time/{step}": duration, **data})
 
     def close(self):
         outf = getattr(self, "_outf", None)
