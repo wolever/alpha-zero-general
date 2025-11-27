@@ -407,15 +407,23 @@ class JGGame(Game):
         return board.arr, -player
 
     def getValidMoves(
-        self, board_arr: np.ndarray[int, int], player: int
+        self,
+        board_arr: np.ndarray[int, int],
+        player: int,
+        __boardCache={},
     ) -> np.ndarray[bool]:
+        assert player == 1
+        board_bytes = board_arr.tobytes()
+        if board_bytes in __boardCache:
+            return __boardCache[board_bytes]
         try:
-            return self._getValidMoves(board_arr, player)
+            res = self._getValidMoves(board_arr, player)
         except GameWin as e:
             # print("Found game win")
             res = np.zeros(self.getActionSize(), dtype=bool)
             res[e.action] = True
-            return res
+        __boardCache[board_bytes] = res
+        return res
 
     def _getValidMoves(
         self, board_arr: np.ndarray[int, int], player: int

@@ -64,7 +64,7 @@ class MCTS:
         # Convert to numpy array for easier computation
         counts = np.array(counts, dtype=np.float64)
 
-        # Handle zero counts: add small epsilon to avoid log(0)
+        # Only add EPS to valid actions to avoid giving non-zero probability to invalid actions
         counts = np.maximum(counts, EPS)
 
         # Compute log(counts) * (1.0 / temp) in log space
@@ -74,8 +74,13 @@ class MCTS:
         log_counts_max = np.max(log_counts)
         exp_counts = np.exp(log_counts - log_counts_max)
 
+        # Ensure only valid actions are considered
+        valids = self.game.getValidMoves(canonicalBoard, 1)
+        exp_counts = np.where(valids, exp_counts, 0)
+
         # Normalize to get probabilities
         counts_sum = np.sum(exp_counts)
+
         if counts_sum == 0:
             # No actions were explored (e.g., all paths hit terminal states or depth limits)
             # Fall back to uniform distribution over valid moves
