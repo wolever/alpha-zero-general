@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from JGGame import JGGame
+from JGGame import JGGame, action_unpack
 
 
 if TYPE_CHECKING:
@@ -92,7 +92,6 @@ class MCTS:
             return probs.tolist()
 
         probs = (exp_counts / counts_sum).tolist()
-
         return probs
 
     def search(self, canonicalBoard, depth=0):
@@ -118,7 +117,8 @@ class MCTS:
         s = self.game.stringRepresentation(canonicalBoard)
 
         if depth > self.args.MCTSDepth:
-            self.Es[s] = -1
+            _, v = self.nnet.predict(canonicalBoard)
+            return -v
 
         if s not in self.Es:
             self.Es[s] = self.game.getGameEnded(canonicalBoard, 1)
@@ -188,6 +188,8 @@ class MCTS:
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
         v = self.search(next_s, depth + 1)
+        if next_player == 1:
+            v = -v
 
         if (s, a) in self.Qsa:
             self.Qsa[(s, a)] = (self.Nsa[(s, a)] * self.Qsa[(s, a)] + v) / (

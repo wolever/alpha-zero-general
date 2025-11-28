@@ -46,13 +46,29 @@ def generate_board(
             yield (q, r)
 
 
-def _print_board_iter(board, width: int, side_length: int = BOARD_SIZE):
+def _print_board_iter(
+    board,
+    width: int,
+    side_length: int = BOARD_SIZE,
+    p1_coins: int | None = None,
+    p2_coins: int | None = None,
+):
     height = 2 * side_length - 1
     for row in range(height):
         row_length = height - abs(side_length - row - 1)
         print(" " * ((height - row_length) * width), end="")
         for col in range(row_length):
             print(next(board), end="")
+        if row == 0:
+            print(
+                f" {Color.RED}P1{Color.OFF} coins: {Color.YELLOW}{p1_coins}{Color.OFF}",
+                end="",
+            )
+        if row == height - 1:
+            print(
+                f" {Color.BLUE}P2{Color.OFF} coins: {Color.YELLOW}{p2_coins}{Color.OFF}",
+                end="",
+            )
         print()
 
 
@@ -359,9 +375,9 @@ class Board:
         _print_board_iter(
             board_bits,
             width=1,
+            p1_coins=self.coins_to_add(1),
+            p2_coins=self.coins_to_add(-1),
         )
-        print("Player 1:", self.coins_to_add(1))
-        print("Player 2:", self.coins_to_add(-1))
 
 
 class GameWin(Exception):
@@ -370,6 +386,8 @@ class GameWin(Exception):
 
 
 class JGGame(Game):
+    debug: bool = False
+
     def getInitBoard(self):
         # return initial board (numpy board)
         return Board.get_initial_arr()
@@ -432,7 +450,7 @@ class JGGame(Game):
         if board_bytes in __boardCache:
             return __boardCache[board_bytes]
 
-        if len(__boardCache) > 250_000:
+        if len(__boardCache) > 50_000:
             __boardCache.clear()
 
         try:
@@ -556,6 +574,8 @@ class JGGame(Game):
         return 0
 
     def getCanonicalForm(self, board_arr: np.ndarray[int, int], player: int):
+        if player == 1:
+            return board_arr
         return Board(board_arr).canonicalize_arr(player)
 
     def getSymmetries(self, board: np.ndarray[int, int], pi: np.ndarray[float, int]):

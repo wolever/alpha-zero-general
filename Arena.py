@@ -68,6 +68,7 @@ class Arena:
                 )
                 self.display(self.game.getCanonicalForm(board, curPlayer))
 
+            # self.game.debug = True
             action = players[curPlayer](board)
             valids = self.game.getValidMoves(board, 1)
 
