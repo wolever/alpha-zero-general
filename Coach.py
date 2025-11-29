@@ -271,8 +271,8 @@ class Coach:
                 self.args.arenaCompare, update_threshold=self.args.updateThreshold
             )
             is_new_better = (
-                float(nwins) / ((pwins + nwins) or 1) > self.args.updateThreshold
-            )
+                float(nwins) / ((pwins + nwins + draws) or 1)
+            ) > self.args.updateThreshold
             total_played = pwins + nwins + draws
             data.update(
                 {
