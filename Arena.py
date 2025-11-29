@@ -200,4 +200,30 @@ class Arena:
                             )
                             return wins[1], wins[2], wins[0], results_in_position
 
+                        # Worst case: new model loses all remaining games
+                        worst_case_new_wins = new_wins
+                        worst_case_total = max_possible_total
+
+                        # Has new model already won (even if it loses all remaining games)?
+                        worst_case_win_rate = (
+                            worst_case_new_wins / worst_case_total
+                            if worst_case_total > 0
+                            else 0
+                        )
+
+                        if worst_case_win_rate >= update_threshold:
+                            print(
+                                f"\nEarly termination: New model has definitely won (will meet {update_threshold:.1%} threshold even if losing all remaining games)"
+                            )
+                            print(
+                                f"  Current: {new_wins}/{games_played} wins ({new_wins / games_played if games_played > 0 else 0:.1%})"
+                            )
+                            print(
+                                f"  Worst case: {worst_case_new_wins}/{worst_case_total} ({worst_case_win_rate:.1%})"
+                            )
+                            print(
+                                f"  Stopping after {games_played}/{total_games} games"
+                            )
+                            return wins[1], wins[2], wins[0], results_in_position
+
         return wins[1], wins[2], wins[0], results_in_position
