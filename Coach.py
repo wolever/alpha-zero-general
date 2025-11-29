@@ -87,7 +87,12 @@ class Coach:
                 print("\nSTUCK IN LOOP")
                 print("Player:", playerAbs)
                 Board(game.getCanonicalForm(boardCanonical, playerAbs)).display()
-                return ([], episodeStep, 0)
+                # In the event of a draw, assign a small negative reward
+                res = [
+                    (trainBoard, trainPi, -0.2)
+                    for _, trainBoard, trainPi in trainExamples
+                ]
+                return (res, episodeStep, 0)
 
             # Temperature decay: Keep high exploration early, then decay gradually
             # This prevents premature convergence on trivial opening patterns
