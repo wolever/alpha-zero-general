@@ -89,7 +89,11 @@ class Coach:
                 Board(game.getCanonicalForm(boardCanonical, playerAbs)).display()
                 # In the event of a draw, assign a small negative reward
                 res = [
-                    (trainBoard, trainPi, -0.2)
+                    (
+                        trainBoard,
+                        np.array(trainPi, dtype=np.float32),
+                        np.float32(-0.2),
+                    )
                     for _, trainBoard, trainPi in trainExamples
                 ]
                 return (res, episodeStep, 0)
@@ -134,7 +138,13 @@ class Coach:
             for trainPlayerAbs, trainBoard, trainPi in trainExamples:
                 # Simple reward scaling - 1 for win, -1 for loss
                 reward = winnerAbs * trainPlayerAbs
-                result.append((trainBoard, trainPi, reward))
+                result.append(
+                    (
+                        trainBoard,
+                        np.array(trainPi, dtype=np.float32),
+                        np.float32(reward),
+                    )
+                )
 
                 # Complex reward scaling
                 # player_perspective = r * x[1]
@@ -495,4 +505,11 @@ def save_examples(examples, filename):
 
 def load_examples(filename):
     with open(filename, "rb") as f:
-        return Unpickler(f).load()
+        return [
+            (
+                a,
+                np.array(b, dtype=np.float32),
+                np.float32(c),
+            )
+            for (a, b, c) in Unpickler(f).load()
+        ]
