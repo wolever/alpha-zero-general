@@ -188,7 +188,7 @@ class NNetWrapper(NeuralNet):
     nnet: JGNNet
     args: "TrainingArgs"
 
-    def __init__(self, game, args):
+    def __init__(self, game: JGGame, args: "TrainingArgs"):
         self.args = args
         self.nnet = JGNNet(game, args)
         self.board_x, self.board_y = game.getBoardSize()

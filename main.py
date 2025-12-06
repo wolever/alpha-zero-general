@@ -32,7 +32,7 @@ class TrainingArgs(BaseModel):
         30  # Gradually reduce stochasticity in MCTS over this many turns
     )
     updateThreshold: float = 0.6  # During arena playoff, new neural net will be accepted if threshold or more of games are won.
-    numMCTSSims: int = 1000  # Number of games moves for MCTS to simulate.
+    numMCTSSims: int = 500  # Number of games moves for MCTS to simulate.
     MCTSDepth: int = 25  # Depth of the MCTS tree.
     arenaCompare: int = 16  # Number of games to play during arena play to determine if new net will be accepted.
     cpuct: float = (
@@ -50,14 +50,14 @@ class TrainingArgs(BaseModel):
     load_folder_file: str = "best.pth.tar"  # Name of the checkpoint file
 
     maxTurnsInGame: int = (
-        75  # Maximum number of turns in a game before it's considered a draw.
+        150  # Maximum number of turns in a game before it's considered a draw.
     )
 
     numParallelSelfPlay: int = 6  # Number of parallel self-play processes
 
-    maxlenOfQueue: int = 5_000  # Number of game examples to train the neural networks.
+    maxlenOfQueue: int = 50_000  # Number of game examples to train the neural networks.
     numItersForTrainExamplesHistory: int = (
-        30  # Number of iterations to store the train examples
+        10  # Number of iterations to store the train examples
     )
 
     nn_lr: float = 0.01

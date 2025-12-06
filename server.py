@@ -10,10 +10,11 @@ import sys
 import os
 
 # Add the AlphaZero directory to the path to import the modules
-sys.path.append(os.path.join(os.path.dirname(__file__), 'engine/ml/alpha-zero-general'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "engine/ml/alpha-zero-general"))
 
 from JGGame import Board, JGGame, action_unpack, action_pack
 from JGNet import NNetWrapper
+from main import TrainingArgs
 from MCTS import MCTS
 from utils import dotdict
 
@@ -33,32 +34,28 @@ app.add_middleware(
 game = JGGame()
 
 # Configuration for MCTS
-args = dotdict({
-    'numMCTSSims': 25,          # Number of simulations for MCTS
-    'cpuct': 1,                 # Exploration constant
-    'numItersForTrainExamplesHistory': 20,
-    'checkpoint': './checkpoints-JGGame/',
-    'load_model': True,
-    'load_folder_file': 'apr15-good.pth.tar',
-})
+args = TrainingArgs()
 
 # Load the neural network
 _model: Optional[MCTS] = None
+
 
 def get_model() -> MCTS:
     global _model
     if _model is None:
         print("Loading model...")
-        nnet = NNetWrapper(game)
-        nnet.load_checkpoint(os.path.join(args.checkpoint, args.load_folder_file))
+        nnet = NNetWrapper(game, args)
+        nnet.load_checkpoint(os.path.join(args.dataDirectory, args.load_folder_file))
         _model = MCTS(game, nnet, args)
         print("Model loaded.")
     return _model
+
 
 # Models for request and response
 class BoardRequest(BaseModel):
     player_idx: int
     board: List[int]
+
 
 class MoveResponse(BaseModel):
     type: str  # "move", "split", or "skip"
@@ -67,11 +64,13 @@ class MoveResponse(BaseModel):
     count: int
     weight: float
 
+
 class MovesResponse(BaseModel):
     moves: List[MoveResponse]
 
+
 @app.post("/get-moves", response_model=MovesResponse)
-def get_moves(request: BoardRequest):
+def get_moves(request: BoardRequest) -> MovesResponse:
     """
     Get possible moves and their probabilities using MCTS.
 
@@ -111,36 +110,45 @@ def get_moves(request: BoardRequest):
         skip, src_idx_player, dst_idx, count = action_unpack(action)
 
         is_add = board_canonical.coins_to_add(1) > 0
-        move_type = (
-            "add" if is_add else
-            "skip" if skip else
-            "move"
-        )
+        move_type = "add" if is_add else "skip" if skip else "move"
 
         if not is_add:
             print("src_idx_player:", src_idx_player)
-            print("board_idx:", board_canonical.src_idx_player_to_idx(1, src_idx_player))
-            print("fix_idx:", fix_idx(board_canonical.src_idx_player_to_idx(1, src_idx_player)))
+            print(
+                "board_idx:", board_canonical.src_idx_player_to_idx(1, src_idx_player)
+            )
+            print(
+                "fix_idx:",
+                fix_idx(board_canonical.src_idx_player_to_idx(1, src_idx_player)),
+            )
 
-        moves.append({
-            "type": move_type,
-            "src_idx": (
-                None if is_add else
-                fix_idx(board_canonical.src_idx_player_to_idx(1, src_idx_player))
-            ),
-            "dst_idx": fix_idx(dst_idx),
-            "count": int(count),
-            "weight": float(a_probs[action])
-        })
+        moves.append(
+            {
+                "type": move_type,
+                "src_idx": (
+                    None
+                    if is_add
+                    else fix_idx(
+                        board_canonical.src_idx_player_to_idx(1, src_idx_player)
+                    )
+                ),
+                "dst_idx": fix_idx(dst_idx),
+                "count": int(count),
+                "weight": float(a_probs[action]),
+            }
+        )
 
     print(moves)
     return {"moves": moves}
+
 
 @app.get("/health")
 def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("server:app", host="0.0.0.0", port=8189, reload=True)
