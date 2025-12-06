@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import numpy as np
 import json
 from typing import List, Dict, Union, Optional
+import random
 
 # Import the necessary modules from AlphaZero implementation
 import sys
@@ -53,6 +54,7 @@ def get_model() -> MCTS:
 
 # Models for request and response
 class BoardRequest(BaseModel):
+    phase: str
     player_idx: int
     board: List[int]
 
@@ -80,6 +82,21 @@ def get_moves(request: BoardRequest) -> MovesResponse:
     Returns:
         JSON object with a list of moves and their probabilities
     """
+    # Handle bidding phase: return random bid between 1 and 5
+    if request.phase == "bidding":
+        random_bid = random.randint(1, 5)
+        return {
+            "moves": [
+                {
+                    "type": "bid",
+                    "src_idx": None,
+                    "dst_idx": 0,
+                    "count": random_bid,
+                    "weight": 1.0,
+                }
+            ]
+        }
+
     mcts = get_model()
     board_arr = np.array(request.board, dtype=np.int8)
     board = Board(board_arr)
