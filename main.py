@@ -50,10 +50,10 @@ class TrainingArgs(BaseModel):
     load_folder_file: str = "best.pth.tar"  # Name of the checkpoint file
 
     maxTurnsInGame: int = (
-        150  # Maximum number of turns in a game before it's considered a draw.
+        100  # Maximum number of turns in a game before it's considered a draw.
     )
 
-    numParallelSelfPlay: int = 6  # Number of parallel self-play processes
+    numParallelSelfPlay: int = 4  # Number of parallel self-play processes
 
     maxlenOfQueue: int = 50_000  # Number of game examples to train the neural networks.
     numItersForTrainExamplesHistory: int = (

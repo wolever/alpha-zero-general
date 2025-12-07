@@ -86,6 +86,35 @@ ax_to_ix, ix_to_ax = _gex_axial_to_index_map(generate_board())
 ix_flip_map = [ax_to_ix[qr] for qr in generate_board(flip=True, mirror=True)]
 
 
+def _compute_mirror_map():
+    """Compute a lookup table that maps each board position to its mirrored position.
+
+    Mirroring is done across the vertical axis. The mirror map is built by comparing
+    the normal board generation order with the mirrored board generation order.
+
+    For position i in normal order:
+    - It has coordinate (q, r) = ix_to_ax[i]
+    - In mirrored order, position i has coordinate mirrored_coords[i]
+    - We need to find which position in normal order has coordinate mirrored_coords[i]
+    - That position is mirror_map[i]
+    """
+    # Generate the mirrored board order
+    mirrored_coords = list(generate_board(mirror=True))
+
+    # Build a mapping: for each position i, find which normal-order position
+    # has the coordinate that appears at position i in the mirrored order
+    mirror_map = {}
+    for idx in range(len(ix_to_ax)):
+        # The coordinate that appears at position idx in mirrored order
+        mirrored_coord = mirrored_coords[idx]
+        # Find which position in normal order has this coordinate
+        mirror_map[idx] = ax_to_ix[mirrored_coord]
+    return mirror_map
+
+
+ix_mirror_map = _compute_mirror_map()
+
+
 PLAYER_CITY_IDXS = {
     1: ax_to_ix[(2, 4)],
     -1: ax_to_ix[(-2, -4)],
@@ -578,9 +607,97 @@ class JGGame(Game):
             return board_arr
         return Board(board_arr).canonicalize_arr(player)
 
+    def _mirror_board(self, board_arr: np.ndarray[int, int]) -> np.ndarray[int, int]:
+        """Mirror the board across the vertical axis."""
+        mirrored = board_arr.copy()
+        # Mirror the board positions (excluding the last 2 elements which are player coin counts)
+        board_positions = mirrored[:-2]
+        mirrored_positions = np.zeros_like(board_positions)
+        for idx in range(len(board_positions)):
+            mirrored_idx = ix_mirror_map[idx]
+            mirrored_positions[mirrored_idx] = board_positions[idx]
+        mirrored[:-2] = mirrored_positions
+        # Player coin counts stay the same (they're not board positions)
+        return mirrored
+
+    def _mirror_policy(
+        self, board_arr: np.ndarray[int, int], pi: np.ndarray[float, int]
+    ) -> np.ndarray[float, int]:
+        """Mirror the policy vector by transforming actions."""
+        board = Board(board_arr)
+        mirrored_pi = np.zeros_like(pi)
+
+        # Get player's coin positions (for player 1, which is what we use in canonical form)
+        player_coin_idxs = board.player_coin_idxs(1)
+
+        # Create a mapping from board position to src_idx_player
+        pos_to_src_idx = {}
+        for src_idx_player, board_pos in enumerate(player_coin_idxs):
+            pos_to_src_idx[board_pos] = src_idx_player
+
+        # Process each action
+        for action in range(len(pi)):
+            if pi[action] == 0:
+                continue
+
+            skip, src_idx_player, dst_idx, count = action_unpack(action)
+
+            if skip:
+                # Skip action maps to itself
+                mirrored_pi[action] += pi[action]
+                continue
+
+            # Mirror the destination
+            mirrored_dst_idx = ix_mirror_map[dst_idx]
+
+            # Mirror the source: find the board position, mirror it, then find new src_idx_player
+            if src_idx_player < len(player_coin_idxs):
+                src_board_pos = player_coin_idxs[src_idx_player]
+                mirrored_src_board_pos = ix_mirror_map[src_board_pos]
+                # Find the new src_idx_player for the mirrored position
+                # We need to rebuild player_coin_idxs for the mirrored board
+                # Actually, we need to think about this differently...
+                # The mirrored board will have coins at mirrored positions
+                # So we need to find which src_idx_player corresponds to the mirrored position
+
+                # Create a temporary mirrored board to find the new coin positions
+                mirrored_board_arr = self._mirror_board(board_arr)
+                mirrored_board = Board(mirrored_board_arr)
+                mirrored_player_coin_idxs = mirrored_board.player_coin_idxs(1)
+
+                # Find the index of mirrored_src_board_pos in the mirrored coin positions
+                try:
+                    mirrored_src_idx_player = np.where(
+                        mirrored_player_coin_idxs == mirrored_src_board_pos
+                    )[0][0]
+                except IndexError:
+                    # If the mirrored source position doesn't have coins, skip this action
+                    continue
+
+                # Pack the mirrored action
+                mirrored_action = action_pack(
+                    skip, mirrored_src_idx_player, mirrored_dst_idx, count
+                )
+                mirrored_pi[mirrored_action] += pi[action]
+            else:
+                # src_idx_player is 0 (placing new coins), just mirror the destination
+                mirrored_action = action_pack(
+                    skip, src_idx_player, mirrored_dst_idx, count
+                )
+                mirrored_pi[mirrored_action] += pi[action]
+
+        return mirrored_pi
+
     def getSymmetries(self, board: np.ndarray[int, int], pi: np.ndarray[float, int]):
+        return [(board, pi)]
+        # Note: _mirror_board looks like it works, but _mirror_policy is a
+        # little bit suspect... test that more completely before trusting this
+        # mirroring.
+        mirrored_board = self._mirror_board(board)
+        mirrored_pi = self._mirror_policy(board, pi)
         return [
             (board, pi),
+            (mirrored_board, mirrored_pi),
         ]
 
     def stringRepresentation(self, board_arr: np.ndarray[int, int]):
