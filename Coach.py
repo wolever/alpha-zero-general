@@ -92,7 +92,7 @@ class Coach:
                     (
                         trainBoard,
                         np.array(trainPi, dtype=np.float32),
-                        np.float32(-0.2),
+                        np.float32(args.drawPenalty),
                     )
                     for _, trainBoard, trainPi in trainExamples
                 ]

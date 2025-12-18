@@ -29,7 +29,7 @@ class TrainingArgs(BaseModel):
     numIters: int = 1000
     numEps: int = 100  # Number of self-play games per iteration
     tempThreshold: int = (
-        30  # Gradually reduce stochasticity in MCTS over this many turns
+        25  # Gradually reduce stochasticity in MCTS over this many turns
     )
     updateThreshold: float = 0.6  # During arena playoff, new neural net will be accepted if threshold or more of games are won.
     numMCTSSims: int = 500  # Number of games moves for MCTS to simulate.
@@ -41,7 +41,8 @@ class TrainingArgs(BaseModel):
     dirichletAlpha: float = (
         0.8  # Alpha for Dirichlet noise (higher = more uniform noise)
     )
-    dirichletEpsilon: float = 0.25  # Weight of Dirichlet noise (exploration)
+    dirichletEpsilon: float = 0.15  # Weight of Dirichlet noise (exploration)
+    drawPenalty: float = -0.5  # Penalty for drawing a game
     dataDirectory: str = (
         f"./checkpoints-{Game.__name__}-v1"  # Directory to save the checkpoints
     )
@@ -62,7 +63,7 @@ class TrainingArgs(BaseModel):
 
     nn_lr: float = 0.01
     nn_dropout: float = 0.3
-    nn_epochs: int = 15
+    nn_epochs: int = 25
     nn_batch_size: int = 1024
     nn_num_channels: int = 256
 

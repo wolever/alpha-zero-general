@@ -199,7 +199,7 @@ class NNetWrapper(NeuralNet):
         """
         examples: list of examples, each example is of form (board, pi, v)
         """
-        optimizer = optim.Adam(self.nnet.parameters())
+        optimizer = optim.Adam(self.nnet.parameters(), lr=self.args.nn_lr)
         num_examples = len(examples)
         print(f"Training net on {num_examples} examples...")
 
