@@ -59,6 +59,7 @@ dependencies = [
     "ruff>=0.14.6",
     "wandb>=0.18.0",
     "click>=8.1.8",
+    "google-cloud-storage>=2.11.0",
 ]
 
 

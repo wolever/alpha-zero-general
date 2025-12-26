@@ -1,0 +1,3 @@
+name: jg-ml
+runtime: nodejs
+description: Infrastructure for JG ML Server

@@ -41,12 +41,53 @@ args = TrainingArgs()
 _model: Optional[MCTS] = None
 
 
+def download_model_from_gcs(bucket_name: str, env: str, dest_path: str):
+    try:
+        from google.cloud import storage
+
+        print(
+            f"Downloading model from gs://{bucket_name}/{env}/best.pth.tar to {dest_path}..."
+        )
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(f"{env}/best.pth.tar")
+        blob.download_to_filename(dest_path)
+        print("Download complete.")
+    except Exception as e:
+        print(f"Failed to download model: {e}")
+        # We might want to re-raise if we strictly need the remote model
+        # raise e
+
+
 def get_model() -> MCTS:
     global _model
     if _model is None:
-        print("Loading model...")
+        model_env = os.environ.get("JG_ENV", "dev")  # default to dev or local
+        bucket_name = os.environ.get("MODEL_BUCKET")
+
+        checkpoint_dir = args.dataDirectory
+        if not os.path.exists(checkpoint_dir):
+            os.makedirs(checkpoint_dir)
+
+        load_file = args.load_folder_file
+        load_path = os.path.join(checkpoint_dir, load_file)
+
+        # If running in cloud (bucket specified), try to fetch the latest model
+        if bucket_name:
+            download_model_from_gcs(bucket_name, model_env, load_path)
+
+        print(f"Loading model from {load_path}...")
+        # Check if file exists before loading
+        if not os.path.exists(load_path):
+            print(f"WARNING: Model file {load_path} not found!")
+            if bucket_name:
+                raise FileNotFoundError(
+                    f"Model file {load_path} not found after download attempt."
+                )
+            # If local dev, maybe fine? But probably not.
+
         nnet = NNetWrapper(game, args)
-        nnet.load_checkpoint(os.path.join(args.dataDirectory, args.load_folder_file))
+        nnet.load_checkpoint(load_path)
         _model = MCTS(game, nnet, args)
         print("Model loaded.")
     return _model
@@ -155,7 +196,6 @@ def get_moves(request: BoardRequest) -> MovesResponse:
             }
         )
 
-    print(moves)
     return {"moves": moves}
 
 
@@ -168,4 +208,5 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("server:app", host="0.0.0.0", port=8189, reload=True)
+    port = int(os.environ.get("PORT", 8189))
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)

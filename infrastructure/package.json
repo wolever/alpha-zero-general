@@ -1,0 +1,15 @@
+{
+  "name": "alpha-zero-infra",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsc && node bin/index.js",
+    "deploy": "pulumi up"
+  },
+  "dependencies": {
+    "@pulumi/pulumi": "^3.0.0",
+    "@pulumi/gcp": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0"
+  }
+}
