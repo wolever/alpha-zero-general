@@ -45,7 +45,7 @@ const service = new gcp.cloudrunv2.Service('alpha-zero-service', {
     }],
   },
 }, {
-  ignoreChanges: ['template.containers[0].image'],
+  ignoreChanges: ['template.containers[0].image', 'template.scaling'],
 });
 
 // Public access
