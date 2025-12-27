@@ -51,6 +51,7 @@ class Coach:
         # If we successfully load past examples, we'll skip the first self-play
         # round in learn() and immediately start training from them.
         self.skip_first_self_play = False
+        self.human_examples = []
 
     @staticmethod
     def executeEpisode(mcts, game, args):
@@ -263,6 +264,17 @@ class Coach:
             trainExamples.extend(e)
         shuffle(trainExamples)
 
+        # Inject human examples
+        if self.human_examples and self.args.human_examples_weight > 0:
+            log.info(
+                f"Injecting {len(self.human_examples)} human examples with weight {self.args.human_examples_weight}"
+            )
+            # We add them multiple times to increase their weight
+            for _ in range(self.args.human_examples_weight):
+                trainExamples.extend(self.human_examples)
+            # Shuffle again to mix them in
+            shuffle(trainExamples)
+
         # Train the new network
         with self.args.time("train") as data:
             self.nnet.train(trainExamples)
@@ -372,6 +384,11 @@ class Coach:
                 examples = load_examples(path)
             except Exception as e:
                 log.error(f"Failed to load examples from {path}: {e}")
+                continue
+
+            if fname == "human-examples.pkl":
+                self.human_examples = examples
+                log.info(f"Loaded {len(examples)} human examples (kept separate)")
                 continue
 
             self.trainExamplesHistory.append(examples)

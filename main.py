@@ -66,6 +66,9 @@ class TrainingArgs(BaseModel):
     nn_epochs: int = 25
     nn_batch_size: int = 1024
     nn_num_channels: int = 256
+    human_examples_weight: int = (
+        10  # Weight for human examples (replicated this many times)
+    )
 
     _outf: io.TextIOWrapper = PrivateAttr(default=None)
 
