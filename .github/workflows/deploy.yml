@@ -34,25 +34,29 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGION }}-docker.pkg.dev
+          username: _json_key
+          password: ${{ secrets.GOOGLE_CREDENTIALS }}
 
       - name: Build and Push Container
-        env:
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          IMAGE_URI="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/alpha-zero:${{ env.IMAGE_TAG }}"
-          echo "Building and pushing $IMAGE_URI"
-
-          # Built from the root of this repo
-          docker build -t $IMAGE_URI .
-          docker push $IMAGE_URI
-
-          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/alpha-zero:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Deploy to Cloud Run
         run: |
-          echo "Deploying ${{ env.IMAGE_URI }} to ${{ env.SERVICE_NAME }}"
+          IMAGE_URI="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/alpha-zero:${{ github.sha }}"
+          echo "Deploying $IMAGE_URI to ${{ env.SERVICE_NAME }}"
           gcloud run services update ${{ env.SERVICE_NAME }} \
-            --image ${{ env.IMAGE_URI }} \
+            --image $IMAGE_URI \
             --region ${{ env.REGION }}
