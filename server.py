@@ -35,7 +35,7 @@ app.add_middleware(
 game = JGGame()
 
 # Configuration for MCTS
-args = TrainingArgs()
+args = TrainingArgs(numMCTSSims=50)
 
 # Load the neural network
 _model: Optional[MCTS] = None
