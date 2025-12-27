@@ -34,7 +34,7 @@ const service = new gcp.cloudrunv2.Service('alpha-zero-service', {
       resources: {
         limits: {
           cpu: '1000m', // Can increase later if ML needs more
-          memory: '1Gi', // ML models might need more RAM
+          memory: '2Gi', // ML models might need more RAM
         },
       },
       envs: [
