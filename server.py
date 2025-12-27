@@ -1,9 +1,9 @@
-from fastapi import FastAPI, HTTPException
+import time
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import numpy as np
-import json
-from typing import List, Dict, Union, Optional
+from typing import List, Optional
 import random
 
 # Import the necessary modules from AlphaZero implementation
@@ -124,6 +124,7 @@ def get_moves(request: BoardRequest) -> MovesResponse:
         JSON object with a list of moves and their probabilities
     """
     # Handle bidding phase: return random bid between 1 and 5
+    start_time = time.time()
     if request.phase == "bidding":
         random_bid = random.randint(1, 5)
         return {
@@ -196,7 +197,9 @@ def get_moves(request: BoardRequest) -> MovesResponse:
             }
         )
 
-    return {"moves": moves}
+    duration = time.time() - start_time
+    print("Request duration:", duration)
+    return {"moves": moves, "duration": duration}
 
 
 @app.get("/health")
