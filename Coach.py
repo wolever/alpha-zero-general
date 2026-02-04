@@ -342,8 +342,9 @@ class Coach:
                 self.pnet.load_checkpoint(best_file)
 
     def saveTrainExamples(self, checkpoint_file):
-        filename = checkpoint_file + ".examples"
-        save_examples(self.trainExamplesHistory, filename)
+        # filename = checkpoint_file + ".examples"
+        # save_examples(self.trainExamplesHistory, filename)
+        pass
 
     def loadTrainExamples(self):
         """
