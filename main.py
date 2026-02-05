@@ -4,9 +4,14 @@ import time
 import os
 import sys
 import json
+import multiprocessing as mp
 from contextlib import contextmanager
 
 import coloredlogs
+
+# Set multiprocessing start method to spawn to avoid CUDA re-initialization issues
+# This must be called at module level before any multiprocessing is used
+mp.set_start_method("spawn", force=True)
 from Coach import Coach
 from pydantic import BaseModel, PrivateAttr
 from datetime import datetime
@@ -27,7 +32,7 @@ coloredlogs.install(level="INFO")  # Change this to DEBUG to see more info.
 class TrainingArgs(BaseModel):
     runId: str = datetime.now().strftime("%Y%m%d%H%M%S")
     numIters: int = 1000
-    numEps: int = 100  # Number of self-play games per iteration
+    numEps: int = 250  # Number of self-play games per iteration
     tempThreshold: int = (
         25  # Gradually reduce stochasticity in MCTS over this many turns
     )
