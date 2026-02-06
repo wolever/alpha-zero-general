@@ -61,6 +61,7 @@ dependencies = [
     "click>=8.1.8",
     "google-cloud-storage>=2.11.0",
     "nvitop>=1.6.2",
+    "optuna>=4.7.0",
 ]
 
 

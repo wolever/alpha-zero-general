@@ -213,29 +213,97 @@ class Coach:
                         break
                     log.info("Trying again...")
 
+    def run_iterations(self, num_iterations: int) -> dict:
+        """
+        Run a fixed number of iterations and return aggregated metrics.
+
+        Used by Optuna for hyperparameter optimization.
+
+        Returns:
+            dict with aggregated metrics:
+                - mean_turns: average game length across all games
+                - stddev_turns: standard deviation of game length
+                - draw_rate: fraction of games that were draws
+                - p1_win_rate: P1 win rate among decisive games
+                - num_games: total games played
+        """
+        all_metrics = []
+
+        for i in range(1, num_iterations + 1):
+            with self.args.time("iteration") as data:
+                data["iteration"] = i
+                try:
+                    iteration_metrics = self.runIteration(i)
+                    if iteration_metrics:
+                        all_metrics.append(iteration_metrics)
+                    data["iteration/result"] = "ok"
+                except Exception as e:
+                    log.exception(f"Error in iteration {i}: {e}")
+                    data["iteration/result"] = "error"
+                    # Continue to next iteration instead of giving up
+
+        # Aggregate metrics across all iterations
+        if not all_metrics:
+            return {
+                "mean_turns": 50,  # Worst case
+                "stddev_turns": 0,
+                "draw_rate": 1.0,
+                "p1_win_rate": 0.5,
+                "num_games": 0,
+            }
+
+        total_games = sum(m["num_games"] for m in all_metrics)
+
+        # Weighted average by number of games
+        def weighted_avg(key):
+            return sum(m[key] * m["num_games"] for m in all_metrics) / total_games if total_games else 0
+
+        return {
+            "mean_turns": weighted_avg("mean_turns"),
+            "stddev_turns": weighted_avg("stddev_turns"),
+            "draw_rate": weighted_avg("draw_rate"),
+            "p1_win_rate": weighted_avg("p1_win_rate"),
+            "num_games": total_games,
+        }
+
     def runIteration(self, i: int):
         log.info(f"Starting Iter #{i} ...")
 
         # Optionally skip the first self-play iteration if we already have
         # examples loaded from disk.
         skip_self_play = self.skip_first_self_play and i == 1
+        iteration_metrics = {}
         if skip_self_play:
             log.info(
                 "Skipping self-play for first iteration because past examples were loaded."
             )
             new_examples = []
+            turns = []
+            winners = []
         else:
             with self.args.time("self-play") as data:
-                new_examples, winners = self.runSelfPlay()
+                new_examples, winners, turns = self.runSelfPlay()
+                draw_count = winners.count(0)
+                p1_win_count = winners.count(1)
                 data.update(
                     {
                         "self-play/examples": len(new_examples),
                         "self-play/first_player_win_rate": (
-                            winners.count(1) / (len(winners) or 1)
+                            p1_win_count / (len(winners) or 1)
                         ),
-                        "self-play/draws": winners.count(0),
+                        "self-play/draws": draw_count,
                     }
                 )
+                # Collect metrics for Optuna
+                if turns:
+                    import statistics
+                    iteration_metrics = {
+                        "mean_turns": statistics.mean(turns),
+                        "stddev_turns": statistics.stdev(turns) if len(turns) > 1 else 0,
+                        "draw_rate": draw_count / len(winners) if winners else 0,
+                        "p1_win_rate": p1_win_count / (len(winners) - draw_count) if (len(winners) - draw_count) > 0 else 0.5,
+                        "num_games": len(winners),
+                    }
             log.info(f"Collected {len(new_examples)} examples.")
 
         exdir = os.path.join(self.args.dataDirectory, "examples")
@@ -341,6 +409,8 @@ class Coach:
                 data["file"] = best_file_link
                 self.pnet.load_checkpoint(best_file)
 
+        return iteration_metrics
+
     def saveTrainExamples(self, checkpoint_file):
         # filename = checkpoint_file + ".examples"
         # save_examples(self.trainExamplesHistory, filename)
@@ -421,11 +491,12 @@ class Coach:
         args.numParallelSelfPlay > 1.
 
         Returns:
-            Tuple of (iterationTrainExamples, winners)
+            Tuple of (iterationTrainExamples, winners, turns)
         """
         from parallel_worker import execute_episode_worker
 
         winners = []
+        turns = []
         iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
 
         num_workers = getattr(self.args, "numParallelSelfPlay", 1)
@@ -465,6 +536,7 @@ class Coach:
                         trainExamples, episodeStep, winnerAbs, duration = result
                         iterationTrainExamples += trainExamples
                         winners.append(winnerAbs)
+                        turns.append(episodeStep)
                         with self.args.time("self-play-game") as data:
                             data.update(
                                 {
@@ -502,6 +574,7 @@ class Coach:
                             }
                         )
                         winners.append(winnerAbs)
+                        turns.append(episodeStep)
                     except Exception as e:
                         log.exception(f"Failed to execute episode: {e}")
                         data.update(
@@ -511,7 +584,7 @@ class Coach:
                             }
                         )
 
-        return iterationTrainExamples, winners
+        return iterationTrainExamples, winners, turns
 
 
 def save_examples(examples, filename):
