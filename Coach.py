@@ -6,6 +6,7 @@ import traceback
 from collections import deque
 from pickle import Pickler, Unpickler
 from random import shuffle
+from sparse_pi import sparsify_pi
 from typing import TYPE_CHECKING
 import multiprocessing as mp
 
@@ -92,8 +93,8 @@ class Coach:
                 res = [
                     (
                         trainBoard,
-                        np.array(trainPi, dtype=np.float32),
-                        np.float32(args.drawPenalty),
+                        sparsify_pi(trainPi),
+                        np.float16(args.drawPenalty),
                     )
                     for _, trainBoard, trainPi in trainExamples
                 ]
@@ -142,8 +143,8 @@ class Coach:
                 result.append(
                     (
                         trainBoard,
-                        np.array(trainPi, dtype=np.float32),
-                        np.float32(reward),
+                        sparsify_pi(trainPi),
+                        np.float16(reward),
                     )
                 )
 
@@ -599,8 +600,8 @@ def load_examples(filename):
         return [
             (
                 a,
-                np.array(b, dtype=np.float32),
-                np.float32(c),
+                sparsify_pi(b),
+                np.float16(c),
             )
             for (a, b, c) in Unpickler(f).load()
         ]

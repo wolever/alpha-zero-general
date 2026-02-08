@@ -13,6 +13,7 @@ from JGGame import JGGame
 from tqdm import tqdm
 
 from utils import dotdict, AverageMeter
+from sparse_pi import dense_pis_from_sparse
 
 if TYPE_CHECKING:
     from main import TrainingArgs
@@ -219,7 +220,7 @@ class NNetWrapper(NeuralNet):
                     )
                     boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
                     boards = torch.FloatTensor(np.array(boards).astype(np.float64))
-                    target_pis = torch.FloatTensor(np.array(pis))
+                    target_pis = dense_pis_from_sparse(pis, self.action_size)
                     target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
                     # predict
